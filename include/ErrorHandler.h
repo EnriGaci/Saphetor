@@ -13,6 +13,7 @@ enum class ErrorCodes {
     // Warnings
     InvalidNumberOfDataInLine = 100,
     UnknownInfoFieldType = 101,
+    ParsingError = 101,
 
 
     UnknownError

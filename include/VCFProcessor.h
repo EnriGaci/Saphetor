@@ -74,6 +74,8 @@ struct VCFData {
     int pos;
     std::string ref;
     std::string alt;
+    std::string filter;
+    float qual;
     VCFDataMap info;
     VCFDataMap format;
 };
@@ -86,39 +88,65 @@ public:
     virtual ~IParser() = default;
 };
 
-class VCFLineParser : public IParser{
+class VCFLineParser : public IParser {
 public:
     VCFLineParser(std::string filePath) {
         setFieldsTypes(filePath, mInfoFieldTypes, "##INFO=<");
         setFieldsTypes(filePath, mFormatFieldTypes, "##FORMAT=<");
     }
 
+    void validate(const std::vector<std::string>& tokens) const {
+        // Implement validation logic here, e.g., check for required fields, validate data types, etc.
+        if (tokens.size() < MIN_EXPECTED_TOKENS_IN_LINE) {
+            RaiseWarning(ErrorCodes::InvalidNumberOfDataInLine, "Unexpected number of tokens in line: " + std::to_string(tokens.size()));
+        }
+
+        std::vector<int> requiredTokens = { TOKEN_CHROM, TOKEN_POS, TOKEN_REF };
+
+        for (int tokenIndex : requiredTokens) {
+            if (tokenIndex >= tokens.size()) {
+                throw std::runtime_error("Missing required token at index: " + std::to_string(tokenIndex));
+            }
+
+            std::string value = tokens[tokenIndex];
+            if (value.empty()) {
+                throw std::runtime_error("Required value at column " + std::to_string(tokenIndex) + " is empty");
+            }
+
+        }
+
+        std::vector<int> noWhiteSpacesTokens = { TOKEN_CHROM, TOKEN_ALT };
+
+        for (int tokenIndex : noWhiteSpacesTokens) {
+            if (tokenIndex >= tokens.size()) {
+                throw std::runtime_error("Missing required token at index: " + std::to_string(tokenIndex));
+            }
+
+            std::string value = tokens[tokenIndex];
+            bool has_whitespace = std::any_of(value.begin(), value.end(), ::isspace);
+            if (has_whitespace) {
+                throw std::runtime_error("No whitespaces allowed for value at column " + std::to_string(tokenIndex));
+            }
+        }
+
+    }
+
     VCFData parse(const std::string& line) const {
         VCFData data;
         // Implement parsing logic here to fill the VCFData structure
         auto tokens = split(line);
-        
-        if (tokens.size() < MIN_EXPECTED_TOKENS_IN_LINE) {
-            RaiseWarning(ErrorCodes::InvalidNumberOfDataInLine, "Unexpected number of tokens in line: " + line);
 
-        }
+        validate(tokens);
 
         data.chrom = tokens[TOKEN_CHROM];
-        data.pos = std::stoi(tokens[TOKEN_POS]);
-        data.ref = tokens[TOKEN_REF];
+        data.pos = std::stoi(getTokenValue(tokens[TOKEN_POS]));
+        data.ref = getTokenValue(tokens[TOKEN_REF]);
         data.alt = getTokenValue(tokens[TOKEN_ALT]);
+        data.filter = getTokenValue(tokens[TOKEN_FILTER]);
+        data.qual = std::stof(getTokenValue(tokens[TOKEN_QUAL]));
 
         setInfo(data, tokens[TOKEN_INFO]);
-
-        if (tokens.size() > TOKEN_FORMAT) {
-            auto format_data = split(tokens[TOKEN_FORMAT], ':');
-            for (const auto& kv : format_data) {
-                auto kv_pair = split(kv, '=');
-                if (kv_pair.size() == 2) {
-                    data.info[kv_pair[0]] = kv_pair[1];
-                }
-            }
-        }
+        setFormat(data, tokens[TOKEN_FORMAT]);
 
         return data;
     }
@@ -261,12 +289,9 @@ private:
         return token == "." ? "" : token;
     }
 
-
 private:
-
     std::unordered_map<std::string, InfoType> mInfoFieldTypes;
     std::unordered_map<std::string, InfoType> mFormatFieldTypes;
-
 };
 
 class IVCFDal {
@@ -284,22 +309,30 @@ public:
 #include <nlohmann/json.hpp>
 
 struct VCFSQLiteRecord {
-    std::string chrom;
-    int pos;
+    std::string chromosome;
+    int position;
     std::string ref;
     std::string alt;
-    std::string info; // JSON or delimited string representation of the info map
-    std::string format; // JSON or delimited string representation of the format map
+    std::string data;
+
 
     VCFSQLiteRecord(const VCFData& item) {
-        chrom = item.chrom;
-        pos = item.pos;
+        chromosome = item.chrom;
+        position = item.pos;
         ref = item.ref;
         alt = item.alt;
+        data = itemToData(item);
+    }
+
+    std::string itemToData(const VCFData& item) {
+        nlohmann::json j;
+        j["FILTER"] = item.filter;
+        j["QUAL"] = item.qual;
 
         // Convert info and format maps to JSON or delimited string
-        info = convertVCFDataMapToString(item.info);
-        format = convertVCFDataMapToString(item.format);
+        j["INFO"] = convertVCFDataMapToString(item.info);
+        j["FORMAT"] = convertVCFDataMapToString(item.format);
+        return j.dump();
     }
 
     std::string convertVCFDataMapToString(const VCFDataMap& dataMap) {
@@ -399,8 +432,13 @@ public:
         vcfDataBatch.reserve(batch.size());
 
         for (const auto& line : batch) {
-            VCFData data = mParser->parse(line);
-            vcfDataBatch.emplace(vcfDataBatch.end(), std::move(data));
+            try {
+
+                VCFData data = mParser->parse(line);
+                vcfDataBatch.emplace(vcfDataBatch.end(), std::move(data));
+            } catch (const std::exception& ex) {
+                RaiseWarning(ErrorCodes::ParsingError, "Error parsing line: " + line + ". Error: " + ex.what());
+            }
         }
 
         mStoreWorker.enqueue([this, vcfDataBatch = std::move(vcfDataBatch)]() mutable {
