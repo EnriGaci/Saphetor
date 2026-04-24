@@ -78,7 +78,15 @@ struct VCFData {
     VCFDataMap format;
 };
 
-class VCFLineParser {
+class IParser {
+public:
+
+    virtual VCFData parse(const std::string& line) const = 0;
+
+    virtual ~IParser() = default;
+};
+
+class VCFLineParser : public IParser{
 public:
     VCFLineParser(std::string filePath) {
         setFieldsTypes(filePath, mInfoFieldTypes, "##INFO=<");
@@ -261,10 +269,115 @@ private:
 
 };
 
+class IVCFDal {
+public:
+
+    virtual void storeBatch(const std::vector<VCFData>& data) = 0;
+
+    virtual ~IVCFDal() = default;
+
+};
+
+#include "sqlite3.h"
+#include "Configuration.h"
+
+#include <nlohmann/json.hpp>
+
+struct VCFSQLiteRecord {
+    std::string chrom;
+    int pos;
+    std::string ref;
+    std::string alt;
+    std::string info; // JSON or delimited string representation of the info map
+    std::string format; // JSON or delimited string representation of the format map
+
+    VCFSQLiteRecord(const VCFData& item) {
+        chrom = item.chrom;
+        pos = item.pos;
+        ref = item.ref;
+        alt = item.alt;
+
+        // Convert info and format maps to JSON or delimited string
+        info = convertVCFDataMapToString(item.info);
+        format = convertVCFDataMapToString(item.format);
+    }
+
+    std::string convertVCFDataMapToString(const VCFDataMap& dataMap) {
+        nlohmann::json j;
+        for (const auto& [key, value] : dataMap) {
+            std::visit([&](auto&& arg) {
+                j[key] = arg;
+                }, value);
+        }
+        return j.dump();
+    }
+
+
+};
+
+class SQLiteVCFDal : public IVCFDal {
+public:
+    SQLiteVCFDal(const std::string& dbName) {
+        // Implement SQLite connection and setup here
+        if (sqlite3_open(dbName.c_str(), &db) != SQLITE_OK) {
+            RaiseError(ErrorCodes::CouldNotOpenDatabase, "Could not open database: " + dbName);
+        }
+    }
+
+    // Non-copyable
+    SQLiteVCFDal(const SQLiteVCFDal&) = delete;
+    SQLiteVCFDal& operator=(const SQLiteVCFDal&) = delete;
+
+    // Movable
+    SQLiteVCFDal(SQLiteVCFDal&& other) noexcept : db(other.db) { other.db = nullptr; }
+    SQLiteVCFDal& operator=(SQLiteVCFDal&& other) noexcept {
+        if (this != &other) {
+            if (db) sqlite3_close(db);
+            db = other.db;
+            other.db = nullptr;
+        }
+        return *this;
+    }
+
+    ~SQLiteVCFDal() {
+        if (db) sqlite3_close(db);
+    }
+
+public:
+
+    void storeBatch(const std::vector<VCFData>& data) override {
+        // Implement batch storage logic here
+        std::vector<VCFSQLiteRecord> records;
+
+        for (const auto& item : data) {
+            VCFSQLiteRecord record(item);
+            records.push_back(std::move(record));
+        }
+    }
+
+private:
+
+private:
+    void exec(const std::string& sql) {
+        char* errMsg = nullptr;
+        if (sqlite3_exec(db, sql.c_str(), nullptr, nullptr, &errMsg) != SQLITE_OK) {
+            std::string error = errMsg;
+            sqlite3_free(errMsg);
+            throw std::runtime_error(error);
+        }
+    }
+
+
+
+private:
+    sqlite3* db;
+};
+
+
 class VCFProcessor
 {
 public:
-    VCFProcessor(std::unique_ptr<IFileReader> fileReader, int numThreads) : mFileReader(std::move(fileReader)), mThreadPool(numThreads)  { }
+    VCFProcessor(std::unique_ptr<IFileReader> fileReader, std::unique_ptr<IParser> parser, std::unique_ptr<IVCFDal> dal, int numThreads) : mFileReader(std::move(fileReader)), mParser(std::move(parser)), mDal(std::move(dal)), mParseWorkersThreadPool(numThreads), mStoreWorker(1)  { }
 
     void process() {
         // Implement VCF processing logic here
@@ -272,7 +385,7 @@ public:
         auto batch = mFileReader->getBatch();
 
         while (!batch.empty()) {
-            mThreadPool.enqueue([this, batch] {
+            mParseWorkersThreadPool.enqueue([this, batch] {
                 // Process the batch of data
                 processBatch(batch);
                 });
@@ -281,20 +394,27 @@ public:
 
     }
 
-    virtual void processBatch(const std::vector<std::string>& batch) {
-        // Implement the logic to process a batch of data
-        return;
+    void processBatch(const std::vector<std::string>& batch) {
+        std::vector<VCFData> vcfDataBatch;
+        vcfDataBatch.reserve(batch.size());
 
-        //for (const auto& line : batch) {
-        //    // Process each line of the batch
-        //    //strore line
-        //}
+        for (const auto& line : batch) {
+            VCFData data = mParser->parse(line);
+            vcfDataBatch.emplace(vcfDataBatch.end(), std::move(data));
+        }
+
+        mStoreWorker.enqueue([this, vcfDataBatch = std::move(vcfDataBatch)]() mutable {
+            mDal->storeBatch(vcfDataBatch);
+            });
     }
 
-    virtual ~VCFProcessor() = default;
+    ~VCFProcessor() = default;
 
 private:
-    ThreadPool mThreadPool;
+    ThreadPool mParseWorkersThreadPool;
+    ThreadPool mStoreWorker;
     std::unique_ptr<IFileReader> mFileReader;
+    std::unique_ptr<IParser> mParser;
+    std::unique_ptr<IVCFDal> mDal;
 };
 

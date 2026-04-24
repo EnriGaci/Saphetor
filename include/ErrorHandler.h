@@ -8,6 +8,7 @@ enum class ErrorCodes {
     MissingEnvironmentalVariable = 10,
     CouldNotOpenVCFFile = 11,
     MissingVCFFilePath = 12,
+    CouldNotOpenDatabase = 13,
 
     // Warnings
     InvalidNumberOfDataInLine = 100,
