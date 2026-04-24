@@ -1,8 +1,13 @@
-# How to Build
+
+# Project overview and architecture summary
+
+# Build instructions
 
 `cmake --build build`
 
-# Run
+# Required environment variables for database access
+
+# How to run the application (with examples)
 
 `build/vcf_importer --vcf PATH --threads N`
 

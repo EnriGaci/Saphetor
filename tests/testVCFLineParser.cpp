@@ -16,8 +16,16 @@ TEST(TestVCFLineParser, TestParseOk) {
     ASSERT_EQ(data.ref, "T");
     ASSERT_EQ(data.alt, "C");
 
-    
-    //ASSERT_EQ(static_cast<int>(data.info["AC"]), 2);
-    //ASSERT_EQ(data.info["AF"], 1.0);
+    ASSERT_EQ(std::get<int>(data.info["AC"]), 2);
+    ASSERT_EQ(std::get<float>(data.info["AF"]), 1.0);
+    ASSERT_EQ(std::get<int>(data.info["AN"]), 2);
+    ASSERT_EQ(std::get<int>(data.info["DP"]), 31);
+    ASSERT_NEAR(std::get<float>(data.info["ExcessHet"]), 3.0103, 1e-5);
+    ASSERT_EQ(std::get<float>(data.info["FS"]), 0.0);
+    ASSERT_EQ(std::get<int>(data.info["MLEAC"]), 2);
+    ASSERT_EQ(std::get<float>(data.info["MLEAF"]), 1.0);
+    ASSERT_EQ(std::get<float>(data.info["MQ"]), 60.0);
+    ASSERT_EQ(std::get<float>(data.info["QD"]), 30.25);
+    ASSERT_NEAR(std::get<float>(data.info["SOR"]), 0.756, 1e-5);
 
 }

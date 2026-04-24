@@ -66,22 +66,24 @@ private:
 };
 
 
-using InfoValue = std::variant<std::string, int, float, bool>;
+using VCFDataMapValue = std::variant<std::string, int, float, bool>;
+using VCFDataMap = std::unordered_map<std::string, VCFDataMapValue>;
+
 struct VCFData {
     std::string chrom;
     int pos;
     std::string ref;
     std::string alt;
-    std::unordered_map<std::string, InfoValue> info;
-    std::unordered_map<std::string, std::string> format;
+    VCFDataMap info;
+    VCFDataMap format;
 };
 
 class VCFLineParser {
 public:
     VCFLineParser(std::string filePath) {
-        setInfoFieldsTypes(filePath);
+        setFieldsTypes(filePath, mInfoFieldTypes, "##INFO=<");
+        setFieldsTypes(filePath, mFormatFieldTypes, "##FORMAT=<");
     }
-
 
     VCFData parse(const std::string& line) const {
         VCFData data;
@@ -112,111 +114,6 @@ public:
 
         return data;
     }
-private:
-
-    void setInfoFieldsTypes(std::string filePath) {
-        auto fileStream = std::ifstream(filePath);
-
-        if (!fileStream.is_open()) {
-            RaiseError(ErrorCodes::CouldNotOpenVCFFile, "Could not open file: " + filePath);
-        }
-
-        std::string line;
-        while (std::getline(fileStream, line)) {
-            if (!line.empty() && line.size() > 1 && line[1] == '#') {
-                if (line.substr(0, 8) == "##INFO=<") {
-                    auto info_line = line.substr(8, line.size() - 9); // Remove "##INFO=<" and ">"
-                    auto info_data = split(info_line, ',');
-                    std::string id;
-                    std::string type;
-                    for (const auto& kv : info_data) {
-                        auto kv_pair = split(kv, '=');
-                        if (kv_pair.size() == 2) {
-                            if (kv_pair[0] == "ID") {
-                                id = kv_pair[1];
-                            }
-                            else if (kv_pair[0] == "Type") {
-                                type = kv_pair[1];
-                            }
-                        }
-                    }
-
-                    if (!id.empty() && !type.empty()) {
-                        if (type == "String") {
-                            mInfoFieldTypes[id] = InfoType::String;
-                        }
-                        else if (type == "Integer") {
-                            mInfoFieldTypes[id] = InfoType::Integer;
-                        }
-                        else if (type == "Float") {
-                            mInfoFieldTypes[id] = InfoType::Float;
-                        }
-                        else if (type == "Flag") { // VCF specification uses "Flag" for boolean fields
-                            mInfoFieldTypes[id] = InfoType::Boolean;
-                        }
-                    }
-                }
-            }
-            else {
-                break; // Stop reading after header lines
-            }
-        }
-    }
-
-    void setInfo(VCFData& data,std::string& info_token) const {
-        if (info_token.empty()) { return; }
-        if (info_token == ".") { return; }
-
-        auto info_data = split(info_token, ';');
-        for (const auto& kv : info_data) {
-            auto kv_pair = split(kv, '=');
-            if (kv_pair.size() == 2) {
-                setDataInfo(data, kv_pair[0], kv_pair[1]);
-                data.info[kv_pair[0]] = kv_pair[1];
-            }
-        }
-
-    }
-
-    void setDataInfo(VCFData& data, const std::string& key, const std::string& value) const {
-        auto it = mInfoFieldTypes.find(key);
-        if (it != mInfoFieldTypes.end()) {
-            switch (it->second) {
-            case InfoType::String:
-                data.info[key] = value;
-                break;
-            case InfoType::Integer:
-                data.info[key] = std::stoi(value);
-                break;
-            case InfoType::Float:
-                data.info[key] = std::stof(value);
-                break;
-            case InfoType::Boolean:
-                data.info[key] = (value == "true" || value == "1");
-                break;
-            }
-        }
-        else {
-            RaiseWarning(ErrorCodes::UnknownInfoFieldType, "Unknown INFO field type for key: " + key + ". Defaulting to string.");
-            // Default to string if type is not defined
-            data.info[key] = value;
-        }
-    }
-
-    std::vector<std::string> split(const std::string& line, char delim='\t') const {
-        std::vector<std::string> tokens;
-        std::istringstream ss(line);
-        std::string token;
-
-        while (std::getline(ss, token, delim)) {
-            tokens.push_back(token);
-        }
-        return tokens;
-    }
-
-    std::string getTokenValue(std::string token) const {
-        return token == "." ? "" : token;
-    }
 
 private:
     static const int TOKEN_CHROM = 0;
@@ -239,7 +136,128 @@ private:
 
 private:
 
+    void setFieldsTypes(const std::string& filePath, std::unordered_map<std::string, InfoType>& fieldTypes, const std::string& type) {
+        auto fileStream = std::ifstream(filePath);
+
+        if (!fileStream.is_open()) {
+            RaiseError(ErrorCodes::CouldNotOpenVCFFile, "Could not open file: " + filePath);
+        }
+
+        std::string line;
+        while (std::getline(fileStream, line)) {
+            if (!line.empty() && line.size() > 1 && line[1] == '#') {
+                if (line.substr(0, type.size()) == type) {
+                    auto info_line = line.substr(type.size(), line.size() - (type.size()+1)); // Remove "##INFO=<" and ">"
+                    auto info_data = split(info_line, ',');
+                    std::string id;
+                    std::string type;
+                    for (const auto& kv : info_data) {
+                        auto kv_pair = split(kv, '=');
+                        if (kv_pair.size() == 2) {
+                            if (kv_pair[0] == "ID") {
+                                id = kv_pair[1];
+                            }
+                            else if (kv_pair[0] == "Type") {
+                                type = kv_pair[1];
+                            }
+                        }
+                    }
+
+                    if (!id.empty() && !type.empty()) {
+                        if (type == "String") {
+                            fieldTypes[id] = InfoType::String;
+                        }
+                        else if (type == "Integer") {
+                            fieldTypes[id] = InfoType::Integer;
+                        }
+                        else if (type == "Float") {
+                            fieldTypes[id] = InfoType::Float;
+                        }
+                        else if (type == "Flag") { // VCF specification uses "Flag" for boolean fields
+                            fieldTypes[id] = InfoType::Boolean;
+                        }
+                    }
+                }
+            }
+            else {
+                break; // Stop reading after header lines
+            }
+        }
+    }
+
+    void setInfo(VCFData& data,std::string& infoToken) const {
+        if (infoToken.empty()) { return; }
+        if (infoToken == ".") { return; }
+
+        auto infoData = split(infoToken, ';');
+        for (const auto& kv : infoData) {
+            auto kv_pair = split(kv, '=');
+            if (kv_pair.size() == 2) {
+                setDataMap(data.info, mInfoFieldTypes, kv_pair[0], kv_pair[1]);
+            }
+        }
+
+    }
+
+    void setFormat(VCFData& data, std::string& formatToken) const {
+        if (formatToken.empty()) { return; }
+        if (formatToken == ".") { return; }
+
+        //auto info_data = split(formatToken, ';');
+        //for (const auto& kv : info_data) {
+        //    auto kv_pair = split(kv, '=');
+        //    if (kv_pair.size() == 2) {
+        //        setDataMap(data.info, mInfoFieldTypes, kv_pair[0], kv_pair[1]);
+        //    }
+        //}
+
+    }
+
+    void setDataMap(VCFDataMap& dataMap, const std::unordered_map<std::string, InfoType>& fieldTypes, const std::string& key, const std::string& value) const {
+        auto it = mInfoFieldTypes.find(key);
+        if (it != mInfoFieldTypes.end()) {
+            switch (it->second) {
+            case InfoType::String:
+                dataMap[key] = value;
+                break;
+            case InfoType::Integer:
+                dataMap[key] = std::stoi(value);
+                break;
+            case InfoType::Float:
+                dataMap[key] = std::stof(value);
+                break;
+            case InfoType::Boolean:
+                dataMap[key] = (value == "true" || value == "1");
+                break;
+            }
+        }
+        else {
+            RaiseWarning(ErrorCodes::UnknownInfoFieldType, "Unknown INFO field type for key: " + key + ". Defaulting to string.");
+            // Default to string if type is not defined
+            dataMap[key] = value;
+        }
+    }
+
+    std::vector<std::string> split(const std::string& line, char delim='\t') const {
+        std::vector<std::string> tokens;
+        std::istringstream ss(line);
+        std::string token;
+
+        while (std::getline(ss, token, delim)) {
+            tokens.push_back(token);
+        }
+        return tokens;
+    }
+
+    std::string getTokenValue(std::string token) const {
+        return token == "." ? "" : token;
+    }
+
+
+private:
+
     std::unordered_map<std::string, InfoType> mInfoFieldTypes;
+    std::unordered_map<std::string, InfoType> mFormatFieldTypes;
 
 };
 
