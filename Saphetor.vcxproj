@@ -20,6 +20,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="apps\main.cpp" />
+    <ClCompile Include="src\ErrorHandler.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\Configuration.h" />

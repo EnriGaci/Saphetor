@@ -1,17 +1,11 @@
 #include "VCFProcessor.h"
+#include "Utils.h"
 
 #include "gtest/gtest.h"
 #include <string>
 
-#ifdef _WIN32
-    const char* FILE_PATH = "../../tests/assignment.sample.vcf";
-#elif __linux__
-    const char* FILE_PATH = "../tests/assignment.sample.vcf";
-#endif
-
-#include <filesystem>
 TEST(TestVCFReader, TestInfoRowsAreSkipped) {
-    VCFReader reader(FILE_PATH, 1);
+    VCFReader reader(TEST_VCF_FILE_PATH, 1);
 
     auto line = reader.getBatch();
 
@@ -23,7 +17,7 @@ TEST(TestVCFReader, TestInfoRowsAreSkipped) {
 }
 
 TEST(TestVCFReader, TestBatchOrLessLinesAreRead) {
-    VCFReader reader(FILE_PATH, 100);
+    VCFReader reader(TEST_VCF_FILE_PATH, 100);
 
     std::vector<std::string> batch = reader.getBatch();
 
