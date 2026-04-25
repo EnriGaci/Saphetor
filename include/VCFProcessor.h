@@ -324,7 +324,7 @@ private:
 class IVCFDal {
 public:
 
-    virtual void initDb() = 0;
+    virtual void initDb(bool clearDb = false) = 0;
     virtual void storeBatchInStaging(const std::vector<VCFData>& data) = 0;
     virtual void finalizeRecords() = 0;
     virtual std::vector<VCFData> fetchAllVariants() = 0;
@@ -563,6 +563,7 @@ private:
 class SQLiteVCFDal : public IVCFDal {
 public:
     SQLiteVCFDal(const std::string& dbName) : mConnectionPool(dbName, 10) {
+        prepareStatments();
     }
 
     // Non-copyable
@@ -578,7 +579,7 @@ public:
 
 public:
 
-    void initDb() override {
+    void initDb(bool clearDb = false) override {
         // Implement database initialization logic here, e.g., create tables if they don't exist
         SQLiteQuery query(mConnectionPool);
 
@@ -586,10 +587,16 @@ public:
         query.exec("PRAGMA journal_mode = WAL;"); // Better concurrency
         query.exec("PRAGMA synchronous = NORMAL;"); // Faster writes
 
-        const std::string createVariantsTable = R"(
-            DROP TABLE IF EXISTS variants;
+        if (clearDb) {
+            const std::string droptables = R"(
+                DROP TABLE IF EXISTS variants;
+                DROP TABLE IF EXISTS staging_variants;
+            )";
+            query.exec(droptables);
+        }
 
-            CREATE TABLE variants (
+        const std::string createVariantsTable = R"(
+            CREATE TABLE IF NOT EXISTS variants (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 chromosome TEXT,
                 position INTEGER,
@@ -621,9 +628,7 @@ public:
         }
 
         const std::string createVCFTempTable = R"(
-            DROP TABLE IF EXISTS staging_variants;
-
-            CREATE TABLE staging_variants (
+            CREATE TABLE IF NOT EXISTS staging_variants (
                 chromosome TEXT,
                 position INTEGER,
                 ref TEXT,
@@ -633,8 +638,10 @@ public:
         )";
         query.exec(createVCFTempTable);
 
-        // prepare statements 
+    }
 
+    void prepareStatments() {
+        // prepare statements 
         const char* sqlInsertStagingVCFRecord = "INSERT INTO staging_variants VALUES (?, ?, ?, ?, ?);";
         prepare_stmt(sqlInsertStagingVCFRecord, &mInsertIntoStagingVCFRecordsStmt);
 

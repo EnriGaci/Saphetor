@@ -73,7 +73,7 @@ TEST(TestVCFSQLiteRecord, TestSQLiteRecordCreation) {
 
 TEST(TestSQLiteVCFDal, TestDbReadDataOk) {
     SQLiteVCFDal dal("test_vcf.db");
-    dal.initDb();
+    dal.initDb(true);
 
     std::vector<VCFData> dataList;
     dataList.push_back(getTestVCFData());
@@ -105,7 +105,7 @@ TEST(TestSQLiteVCFDal, TestDbReadDataOk) {
 
 TEST(TestSQLiteVCFDal, TestDbCreateInBatchesOK) {
     SQLiteVCFDal dal("test_vcf.db");
-    dal.initDb();
+    dal.initDb(true);
 
     std::vector<VCFData> dataList;
     size_t numRecords = 1000; // 1 million records take 10 mins

@@ -7,10 +7,11 @@
 #include <thread>
 #include <unordered_map>
 
-std::tuple<std::string, int> parseArgs(int argc, char* argv[]) {
+std::tuple<std::string, int, bool> parseArgs(int argc, char* argv[]) {
     std::string filePath;
     unsigned int hardwareConcurrency = std::thread::hardware_concurrency();
     int threads = hardwareConcurrency ? hardwareConcurrency : 1; // Default to 1 thread
+    bool reset = false;
 
     for (int i = 1; i < argc; ++i) {
         if (std::string(argv[i]) == "--vcf" && i + 1 < argc) {
@@ -19,11 +20,15 @@ std::tuple<std::string, int> parseArgs(int argc, char* argv[]) {
         else if (std::string(argv[i]) == "--threads" && i + 1 < argc) {
             threads = std::stoi(argv[++i]);
         }
+        else if (std::string(argv[i]) == "--reset") {
+            reset = true;
+        }
         if (std::string(argv[i]) == "--help" || std::string(argv[i]) == "-h") {
             std::cout << "Usage: vcf_importer [OPTIONS]\n\n"
                 << "Options:\n"
                 << "  --vcf PATH      Path to input VCF\n"
-                << "  --threads N     Number of threads\n";
+                << "  --threads N     Number of threads\n"
+                << "  --reset         When passed clears the tables in storage\n";
             std::exit(0); // Return empty path and 0 threads to indicate help was requested
         }
     }
@@ -32,27 +37,19 @@ std::tuple<std::string, int> parseArgs(int argc, char* argv[]) {
         RaiseError(ErrorCodes::MissingVCFFilePath, "Error: --vcf option is required.");
     }
 
-    return { filePath, threads };
+    return { filePath, threads, reset };
 }
 
 int main(int argv, char* argc[]) {
 
-    auto [filePath, threads] = parseArgs(argv, argc);
+    auto [filePath, numberOfThreads, clearDb] = parseArgs(argv, argc);
 
     std::unique_ptr<IFileReader> reader = std::make_unique<VCFReader>(filePath);
     std::unique_ptr<IParser> parser = std::make_unique<VCFLineParser>(filePath);
     std::unique_ptr<IVCFDal> dal = std::make_unique<SQLiteVCFDal>(Configuration::getInstance().getSqliteDBName());
-    dal->initDb();
+    dal->initDb(clearDb);
 
-    VCFProcessor processor (std::move(reader), std::move(parser), std::move(dal), threads);
+    VCFProcessor processor (std::move(reader), std::move(parser), std::move(dal), numberOfThreads);
 
     processor.process();
-
-    dal = std::make_unique<SQLiteVCFDal>(Configuration::getInstance().getSqliteDBName());
-    auto results = dal->fetchAllVariants();
-
-    for (auto res : results) {
-        std::cout << res << std::endl;
-    }
-
 }
