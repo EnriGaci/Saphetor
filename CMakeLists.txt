@@ -58,10 +58,11 @@ FetchContent_MakeAvailable(googletest)
 
 enable_testing()
 # Create a static library for shared test utilities
-add_library(test_utils STATIC tests/Utils.cpp src/ErrorHandler.cpp)
+add_library(test_utils STATIC tests/Utils.cpp src/ErrorHandler.cpp ../deps/sqlite-amalgamation-3530000/sqlite3.c)
 
 
-add_executable(TestVCFImporter tests/testVCFReader.cpp tests/testVCFLineParser.cpp)
+add_executable(TestVCFImporter tests/testVCFReader.cpp tests/testVCFLineParser.cpp tests/testVCFSQLite.cpp)
+
 target_link_libraries(TestVCFImporter gtest_main test_utils)
 
 target_include_directories(TestVCFImporter PRIVATE ${SQLITE3_DIR})

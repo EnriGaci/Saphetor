@@ -300,6 +300,7 @@ public:
     virtual void initDb() = 0;
     virtual void storeBatchInStaging(const std::vector<VCFData>& data) = 0;
     virtual void finalizeRecords() = 0;
+    virtual std::vector<VCFData> fetchAllVariants() = 0;
 
     virtual ~IVCFDal() = default;
 
@@ -317,6 +318,52 @@ struct VCFSQLiteRecord {
     std::string alt;
     std::string data;
 
+    VCFSQLiteRecord() = default;
+
+    VCFData toVCFData() const {
+        VCFData data;
+        data.chrom = chromosome;
+        data.pos = position;
+        data.ref = ref;
+        data.alt = alt;
+
+        auto jsonData = nlohmann::json::parse(this->data);
+        data.filter = jsonData["FILTER"].get<std::string>();
+        data.qual = jsonData["QUAL"].get<float>();
+
+        // Parse INFO and FORMAT back to VCFDataMap
+        data.info = getDataInfoFromJson(jsonData);
+        data.format = getDataFormatFromJson(jsonData);
+
+        return data;
+    }
+
+    VCFDataMap getDataInfoFromJson(nlohmann::json& info_json) const {
+        VCFDataMap dataMap;
+        std::string infoStr = info_json["INFO"].get<std::string>();
+        nlohmann::json infoObj = nlohmann::json::parse(infoStr);
+
+        for (auto& [key, value] : infoObj.items()) {
+            if (value.is_string()) {
+                dataMap[key] = value.get<std::string>();
+            }
+            else if (value.is_number_integer()) {
+                dataMap[key] = value.get<int>();
+            }
+            else if (value.is_number_float()) {
+                dataMap[key] = value.get<float>();
+            }
+            else if (value.is_boolean()) {
+                dataMap[key] = value.get<bool>();
+            }
+        }
+        return dataMap;
+    }
+
+    VCFDataMap getDataFormatFromJson(nlohmann::json& info_json) const {
+        VCFDataMap dataMap;
+        return dataMap;
+    }
 
     VCFSQLiteRecord(const VCFData& item) {
         chromosome = item.chrom;
@@ -371,6 +418,15 @@ class SQLiteStmt : public SQLiteQuery {
 public:
 
     SQLiteStmt(sqlite3* db, sqlite3_stmt* stmt) : SQLiteQuery(db) {
+
+        if (!db) {
+            throw std::runtime_error("Can't use statements with uninitialized db");
+        }
+
+        if (!stmt) {
+            throw std::runtime_error("Invalid statement");
+        }
+
         exec("BEGIN TRANSACTION");
         mStmt = stmt;
     }
@@ -398,6 +454,32 @@ private:
     sqlite3_stmt* mStmt;
 };
 
+class SQLiteSelect {
+public:
+    SQLiteSelect(sqlite3* db, sqlite3_stmt* stmt) : mDb(db), mStmt(stmt){ }
+
+    int step() {
+        return sqlite3_step(mStmt);
+    }
+
+    std::string column_text(int index) {
+        const char* text = reinterpret_cast<const char*>(sqlite3_column_text(mStmt, index));
+        return text;
+    }
+
+    int column_int(int index) {
+        return sqlite3_column_int(mStmt, index);
+    }
+
+    ~SQLiteSelect() {
+        if (mStmt) sqlite3_finalize(mStmt);
+    }
+
+private:
+    sqlite3* mDb{ nullptr };
+    sqlite3_stmt* mStmt{ nullptr };
+};
+
 class SQLiteVCFDal : public IVCFDal {
 public:
     SQLiteVCFDal(const std::string& dbName) {
@@ -423,28 +505,27 @@ public:
         // Implement database initialization logic here, e.g., create tables if they don't exist
         SQLiteQuery query(db);
 
+        // Performance Tuning
+        query.exec("PRAGMA journal_mode = WAL;"); // Better concurrency
+        query.exec("PRAGMA synchronous = NORMAL;"); // Faster writes
+
         const std::string createVariantsTable = R"(
-            CREATE TABLE IF NOT EXISTS variants (
+            DROP TABLE IF EXISTS variants;
+
+            CREATE TABLE variants (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
                 chromosome TEXT,
                 position INTEGER,
                 ref TEXT,
                 alt TEXT,
-                data TEXT,
-                PRIMARY KEY (chromosome, position)
+                data TEXT
             );
+
+            -- Nnon-unique index to keep sorting fast
+            CREATE INDEX IF NOT EXISTS idx_coords ON variants (chromosome, position);
+
         )";
         query.exec(createVariantsTable);
-
-        const std::string createVCFTempTable = R"(
-            CREATE TABLE IF NOT EXISTS staging_variants (
-                chromosome TEXT,
-                position INTEGER,
-                ref TEXT,
-                alt TEXT,
-                data TEXT,
-            );
-        )";
-        query.exec(createVCFTempTable);
 
         const std::string constraints = R"(
             ALTER TABLE variants 
@@ -452,11 +533,66 @@ public:
             CHECK (json_valid(data));
         )";
 
+        try {
+            query.exec(constraints);
+        }
+        catch (const std::exception& ex) {
+            // Ignore error if constraint already exists
+            if (std::string(ex.what()).find("already exists") == std::string::npos) {
+                throw; // ignore if it's the already exists
+            }
+        }
+
+        const std::string createVCFTempTable = R"(
+            DROP TABLE IF EXISTS staging_variants;
+
+            CREATE TABLE staging_variants (
+                chromosome TEXT,
+                position INTEGER,
+                ref TEXT,
+                alt TEXT,
+                data TEXT
+            );
+        )";
+        query.exec(createVCFTempTable);
 
         // prepare statements 
 
         const char* sqlInsertStagingVCFRecord = "INSERT INTO staging_variants VALUES (?, ?, ?, ?, ?);";
-        prepare(sqlInsertStagingVCFRecord, mInsertIntoStagingVCFRecordsStmt);
+        prepare(sqlInsertStagingVCFRecord, &mInsertIntoStagingVCFRecordsStmt);
+
+        const char* sqlFetchAllVariantsStmt= R"(
+            SELECT CHROMOSOME, POSITION, REF, ALT, DATA
+            FROM variants
+            ORDER BY CHROMOSOME, POSITION; 
+        )";
+
+        prepare(sqlFetchAllVariantsStmt, &mFetchAllVariantsStmt);
+    }
+
+    std::vector<VCFData> fetchAllVariants() override {
+
+        if (!db) {
+            throw std::runtime_error("Database connection is not initialized");
+        }
+
+        std::vector<VCFData> result;
+
+        SQLiteSelect select(db, mFetchAllVariantsStmt);
+
+        while (select.step() == SQLITE_ROW) {
+            VCFSQLiteRecord record;
+
+            record.chromosome = select.column_text(0);
+            record.position = select.column_int(1);
+            record.ref = select.column_text(2);
+            record.alt = select.column_text(3);
+            record.data = select.column_text(4);
+
+            result.emplace_back(record.toVCFData());
+        }
+
+        return result;
     }
 
     void storeBatchInStaging(const std::vector<VCFData>& data) override {
@@ -467,17 +603,25 @@ public:
             VCFSQLiteRecord record(item);
             records.push_back(std::move(record));
         }
+
+        storeInVCFStaging(records);
     }
 
     void finalizeRecords() override {
-        // Implement batch storage logic here
         if (!db) {
             throw std::runtime_error("Database connection is not initialized");
         }
 
-        SQLiteQuery query(db); // RAII transaction management
+        SQLiteQuery query(db); 
 
-        const char* sql = "INSERT INTO variants SELECT * FROM staging_variants ORDER BY chromosome, position ;";
+        const char* sql = R"(
+        INSERT INTO variants (chromosome, position, ref, alt, data)
+            SELECT CHROMOSOME, POSITION, REF, ALT, DATA
+            FROM staging_variants
+            ORDER BY CHROMOSOME, POSITION ;
+
+        DELETE FROM staging_variants;
+        )";
 
         query.exec(sql);
     }
@@ -504,9 +648,9 @@ private:
 
 private:
 
-    void prepare(const char* sql, sqlite3_stmt* stmt) {
+    void prepare(const char* sql, sqlite3_stmt** stmt) {
         char* errMsg = nullptr;
-        if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
+        if (sqlite3_prepare_v2(db, sql, -1, stmt, NULL) != SQLITE_OK) {
             std::string error = errMsg;
             sqlite3_free(errMsg);
             throw std::runtime_error(error);
@@ -516,6 +660,7 @@ private:
 private:
     sqlite3* db{ nullptr };
     sqlite3_stmt* mInsertIntoStagingVCFRecordsStmt{ nullptr };
+    sqlite3_stmt* mFetchAllVariantsStmt{ nullptr };
 };
 
 

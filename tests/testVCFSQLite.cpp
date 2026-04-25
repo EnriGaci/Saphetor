@@ -15,6 +15,7 @@ VCFData getTestVCFData() {
     data.info["DP"] = 31;
     data.info["ExcessHet"] = 3.0103f;
     data.info["FS"] = 0.0f;
+    data.info["FS"] = 0.0f;
     data.info["MLEAC"] = 2;
     data.info["MLEAF"] = 1.0f;
     data.info["MQ"] = 60.0f;
@@ -34,4 +35,19 @@ TEST(TestVCFSQLiteRecord, TestSQLiteRecordCreation) {
     ASSERT_EQ(record.ref, "T");
     ASSERT_EQ(record.alt, "C");
     ASSERT_EQ(record.data, "{\"FILTER\":\"\",\"FORMAT\":\"null\",\"INFO\":\"{\\\"AC\\\":2,\\\"AF\\\":1.0,\\\"AN\\\":2,\\\"DP\\\":31,\\\"ExcessHet\\\":3.0102999210357666,\\\"FS\\\":0.0,\\\"MLEAC\\\":2,\\\"MLEAF\\\":1.0,\\\"MQ\\\":60.0,\\\"QD\\\":30.25,\\\"SOR\\\":0.7559999823570251}\",\"QUAL\":-107374176.0}");
+}
+
+TEST(TestSQLiteVCFDal, TestDbCreateOK) {
+    SQLiteVCFDal dal("test_vcf.db");
+    dal.initDb();
+
+    std::vector<VCFData> dataList;
+    dataList.push_back(getTestVCFData());
+
+    dal.storeBatchInStaging(dataList);
+    dal.finalizeRecords();
+
+    auto readRecords = dal.fetchAllVariants();
+
+    ASSERT_EQ(readRecords.size(), 1);
 }
