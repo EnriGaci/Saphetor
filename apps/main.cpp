@@ -48,4 +48,11 @@ int main(int argv, char* argc[]) {
 
     processor.process();
 
+    dal = std::make_unique<SQLiteVCFDal>(Configuration::getInstance().getSqliteDBName());
+    auto results = dal->fetchAllVariants();
+
+    for (auto res : results) {
+        std::cout << res << std::endl;
+    }
+
 }

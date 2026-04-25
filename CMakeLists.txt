@@ -2,6 +2,11 @@ cmake_minimum_required(VERSION 3.15)
 project(VCFImporter)
 
 set(CMAKE_CXX_STANDARD 17)
+if(MSVC)
+    add_compile_options(/W4 /WX)
+else()
+    add_compile_options(-Wall -Wextra -Werror)
+endif()
 
 # Download and build SQLite3 using FetchContent for portability
 include(FetchContent)

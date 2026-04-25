@@ -80,6 +80,33 @@ struct VCFData {
     VCFDataMap format;
 };
 
+inline std::ostream& operator<<(std::ostream& os, const VCFData& data) {
+    os << "chrom: " << data.chrom
+       << ", pos: " << data.pos
+       << ", ref: " << data.ref
+       << ", alt: " << data.alt
+       << ", filter: " << data.filter
+       << ", qual: " << data.qual;
+    os << ", info: {";
+    bool first = true;
+    for (const auto& [key, value] : data.info) {
+        if (!first) os << ", ";
+        os << key << ": ";
+        std::visit([&os](auto&& arg) { os << arg; }, value);
+        first = false;
+    }
+    os << "}, format: {";
+    first = true;
+    for (const auto& [key, value] : data.format) {
+        if (!first) os << ", ";
+        os << key << ": ";
+        std::visit([&os](auto&& arg) { os << arg; }, value);
+        first = false;
+    }
+    os << "}";
+    return os;
+}
+
 class IParser {
 public:
 
@@ -98,13 +125,13 @@ public:
     void validate(const std::vector<std::string>& tokens) const {
         // Implement validation logic here, e.g., check for required fields, validate data types, etc.
         if (tokens.size() < MIN_EXPECTED_TOKENS_IN_LINE) {
-            RaiseWarning(ErrorCodes::InvalidNumberOfDataInLine, "Unexpected number of tokens in line: " + std::to_string(tokens.size()));
+            RaiseWarning("Unexpected number of tokens in line: " + std::to_string(tokens.size()));
         }
 
         std::vector<int> requiredTokens = { TOKEN_CHROM, TOKEN_POS, TOKEN_REF };
 
         for (int tokenIndex : requiredTokens) {
-            if (tokenIndex >= tokens.size()) {
+            if (tokenIndex >= static_cast<int>(tokens.size())) {
                 throw std::runtime_error("Missing required token at index: " + std::to_string(tokenIndex));
             }
 
@@ -118,7 +145,7 @@ public:
         std::vector<int> noWhiteSpacesTokens = { TOKEN_CHROM, TOKEN_ALT };
 
         for (int tokenIndex : noWhiteSpacesTokens) {
-            if (tokenIndex >= tokens.size()) {
+            if (tokenIndex >= static_cast<int>(tokens.size())) {
                 throw std::runtime_error("Missing required token at index: " + std::to_string(tokenIndex));
             }
 
@@ -186,7 +213,7 @@ private:
                     auto info_line = line.substr(type.size(), line.size() - (type.size()+1)); // Remove "##INFO=<" and ">"
                     auto info_data = split(info_line, ',');
                     std::string id;
-                    std::string type;
+                    std::string type_;
                     for (const auto& kv : info_data) {
                         auto kv_pair = split(kv, '=');
                         if (kv_pair.size() == 2) {
@@ -194,22 +221,22 @@ private:
                                 id = kv_pair[1];
                             }
                             else if (kv_pair[0] == "Type") {
-                                type = kv_pair[1];
+                                type_ = kv_pair[1];
                             }
                         }
                     }
 
-                    if (!id.empty() && !type.empty()) {
-                        if (type == "String") {
+                    if (!id.empty() && !type_.empty()) {
+                        if (type_ == "String") {
                             fieldTypes[id] = InfoType::String;
                         }
-                        else if (type == "Integer") {
+                        else if (type_ == "Integer") {
                             fieldTypes[id] = InfoType::Integer;
                         }
-                        else if (type == "Float") {
+                        else if (type_ == "Float") {
                             fieldTypes[id] = InfoType::Float;
                         }
-                        else if (type == "Flag") { // VCF specification uses "Flag" for boolean fields
+                        else if (type_ == "Flag") { // VCF specification uses "Flag" for boolean fields
                             fieldTypes[id] = InfoType::Boolean;
                         }
                     }
@@ -235,7 +262,7 @@ private:
 
     }
 
-    void setFormat(VCFData& data, std::string& formatToken) const {
+    void setFormat(VCFData& /*data*/, std::string& formatToken) const {
         if (formatToken.empty()) { return; }
         if (formatToken == ".") { return; }
 
@@ -250,8 +277,8 @@ private:
     }
 
     void setDataMap(VCFDataMap& dataMap, const std::unordered_map<std::string, InfoType>& fieldTypes, const std::string& key, const std::string& value) const {
-        auto it = mInfoFieldTypes.find(key);
-        if (it != mInfoFieldTypes.end()) {
+        auto it = fieldTypes.find(key);
+        if (it != fieldTypes.end()) {
             switch (it->second) {
             case InfoType::String:
                 dataMap[key] = value;
@@ -268,7 +295,7 @@ private:
             }
         }
         else {
-            RaiseWarning(ErrorCodes::UnknownInfoFieldType, "Unknown INFO field type for key: " + key + ". Defaulting to string.");
+            RaiseWarning("Unknown INFO field type for key: " + key + ". Defaulting to string.");
             // Default to string if type is not defined
             dataMap[key] = value;
         }
@@ -312,30 +339,30 @@ public:
 #include <nlohmann/json.hpp>
 
 struct VCFSQLiteRecord {
-    std::string chromosome;
-    int position;
-    std::string ref;
-    std::string alt;
-    std::string data;
+    std::string chromosome{""};
+    int position{0};
+    std::string ref{""};
+    std::string alt{""};
+    std::string data{""};
 
     VCFSQLiteRecord() = default;
 
     VCFData toVCFData() const {
-        VCFData data;
-        data.chrom = chromosome;
-        data.pos = position;
-        data.ref = ref;
-        data.alt = alt;
+        VCFData vcfData;
+        vcfData.chrom = chromosome;
+        vcfData.pos = position;
+        vcfData.ref = ref;
+        vcfData.alt = alt;
 
         auto jsonData = nlohmann::json::parse(this->data);
-        data.filter = jsonData["FILTER"].get<std::string>();
-        data.qual = jsonData["QUAL"].get<float>();
+        vcfData.filter = jsonData["FILTER"].get<std::string>();
+        vcfData.qual = jsonData["QUAL"].get<float>();
 
         // Parse INFO and FORMAT back to VCFDataMap
-        data.info = getDataInfoFromJson(jsonData);
-        data.format = getDataFormatFromJson(jsonData);
+        vcfData.info = getDataInfoFromJson(jsonData);
+        vcfData.format = getDataFormatFromJson(jsonData);
 
-        return data;
+        return vcfData;
     }
 
     VCFDataMap getDataInfoFromJson(nlohmann::json& info_json) const {
@@ -360,7 +387,7 @@ struct VCFSQLiteRecord {
         return dataMap;
     }
 
-    VCFDataMap getDataFormatFromJson(nlohmann::json& info_json) const {
+    VCFDataMap getDataFormatFromJson(nlohmann::json& /*info_json*/) const {
         VCFDataMap dataMap;
         return dataMap;
     }
@@ -397,31 +424,89 @@ struct VCFSQLiteRecord {
 
 };
 
+
+class SQLiteConnectionPool {
+public:
+    SQLiteConnectionPool(const std::string& dbName, size_t poolSize)
+        : dbName_(dbName)
+    {
+        for (size_t i = 0; i < poolSize; ++i) {
+            sqlite3* db = nullptr;
+            if (sqlite3_open(dbName.c_str(), &db) != SQLITE_OK) {
+                throw std::runtime_error("Failed to open SQLite database: " + dbName);
+            }
+            pool_.push(db);
+        }
+    }
+
+    ~SQLiteConnectionPool() {
+        std::unique_lock<std::mutex> lock(mutex_);
+        while (!pool_.empty()) {
+            sqlite3* db = pool_.front();
+            pool_.pop();
+            if (db) sqlite3_close(db);
+        }
+    }
+
+    // Acquire a connection from the pool (blocks if none available)
+    sqlite3* acquire() {
+        std::unique_lock<std::mutex> lock(mutex_);
+        cond_.wait(lock, [this] { return !pool_.empty(); });
+        sqlite3* db = pool_.front();
+        pool_.pop();
+        return db;
+    }
+
+    // Return a connection to the pool
+    void release(sqlite3* db) {
+        std::unique_lock<std::mutex> lock(mutex_);
+        pool_.push(db);
+        cond_.notify_one();
+    }
+
+    // Not copyable or movable
+    SQLiteConnectionPool(const SQLiteConnectionPool&) = delete;
+    SQLiteConnectionPool& operator=(const SQLiteConnectionPool&) = delete;
+
+private:
+    std::string dbName_;
+    std::queue<sqlite3*> pool_;
+    std::mutex mutex_;
+    std::condition_variable cond_;
+};
+
 class SQLiteQuery {
 public:
-    SQLiteQuery(sqlite3* db) : mDb(db) { }
+    SQLiteQuery(SQLiteConnectionPool& pool) : mConnectionPool(pool) {
+        mDb = pool.acquire();
+    }
 
     void exec(const std::string& sql) {
         char* errMsg = nullptr;
-        if (sqlite3_exec(mDb, sql.c_str(), nullptr, nullptr, &errMsg) != SQLITE_OK) {
+        auto status = sqlite3_exec(mDb, sql.c_str(), nullptr, nullptr, &errMsg);
+        if (status != SQLITE_OK) {
             std::string error = errMsg;
             sqlite3_free(errMsg);
             throw std::runtime_error(error);
         }
     }
 
+    ~SQLiteQuery()
+    {
+        if (mDb) {
+            mConnectionPool.release(mDb);
+        }
+    }
+
 protected:
-    sqlite3* mDb;
+    sqlite3* mDb{ nullptr };
+    SQLiteConnectionPool& mConnectionPool;
 };
 
 class SQLiteStmt : public SQLiteQuery {
 public:
 
-    SQLiteStmt(sqlite3* db, sqlite3_stmt* stmt) : SQLiteQuery(db) {
-
-        if (!db) {
-            throw std::runtime_error("Can't use statements with uninitialized db");
-        }
+    SQLiteStmt(SQLiteConnectionPool& pool, sqlite3_stmt* stmt) : SQLiteQuery(pool) {
 
         if (!stmt) {
             throw std::runtime_error("Invalid statement");
@@ -448,7 +533,6 @@ public:
     ~SQLiteStmt() {
         // 4. Commit the Transaction flushing all rows to disk at once
         exec("COMMIT;");
-        if (mStmt) sqlite3_finalize(mStmt);
     }
 private:
     sqlite3_stmt* mStmt;
@@ -456,7 +540,7 @@ private:
 
 class SQLiteSelect {
 public:
-    SQLiteSelect(sqlite3* db, sqlite3_stmt* stmt) : mDb(db), mStmt(stmt){ }
+    SQLiteSelect(sqlite3_stmt* stmt) : mStmt(stmt){ }
 
     int step() {
         return sqlite3_step(mStmt);
@@ -471,22 +555,14 @@ public:
         return sqlite3_column_int(mStmt, index);
     }
 
-    ~SQLiteSelect() {
-        if (mStmt) sqlite3_finalize(mStmt);
-    }
-
+    ~SQLiteSelect() = default;
 private:
-    sqlite3* mDb{ nullptr };
     sqlite3_stmt* mStmt{ nullptr };
 };
 
 class SQLiteVCFDal : public IVCFDal {
 public:
-    SQLiteVCFDal(const std::string& dbName) {
-        // Implement SQLite connection and setup here
-        if (sqlite3_open(dbName.c_str(), &db) != SQLITE_OK) {
-            RaiseError(ErrorCodes::CouldNotOpenDatabase, "Could not open database: " + dbName);
-        }
+    SQLiteVCFDal(const std::string& dbName) : mConnectionPool(dbName, 10) {
     }
 
     // Non-copyable
@@ -496,14 +572,15 @@ public:
     SQLiteVCFDal& operator=(SQLiteVCFDal && other) = delete;
 
     ~SQLiteVCFDal() {
-        if (db) sqlite3_close(db);
+        if (mFetchAllVariantsStmt) finalize_stmt(mFetchAllVariantsStmt);
+        if (mInsertIntoStagingVCFRecordsStmt) finalize_stmt(mInsertIntoStagingVCFRecordsStmt);
     }
 
 public:
 
     void initDb() override {
         // Implement database initialization logic here, e.g., create tables if they don't exist
-        SQLiteQuery query(db);
+        SQLiteQuery query(mConnectionPool);
 
         // Performance Tuning
         query.exec("PRAGMA journal_mode = WAL;"); // Better concurrency
@@ -559,7 +636,7 @@ public:
         // prepare statements 
 
         const char* sqlInsertStagingVCFRecord = "INSERT INTO staging_variants VALUES (?, ?, ?, ?, ?);";
-        prepare(sqlInsertStagingVCFRecord, &mInsertIntoStagingVCFRecordsStmt);
+        prepare_stmt(sqlInsertStagingVCFRecord, &mInsertIntoStagingVCFRecordsStmt);
 
         const char* sqlFetchAllVariantsStmt= R"(
             SELECT CHROMOSOME, POSITION, REF, ALT, DATA
@@ -567,18 +644,14 @@ public:
             ORDER BY CHROMOSOME, POSITION; 
         )";
 
-        prepare(sqlFetchAllVariantsStmt, &mFetchAllVariantsStmt);
+        prepare_stmt(sqlFetchAllVariantsStmt, &mFetchAllVariantsStmt);
     }
 
+    [[nodiscard]]
     std::vector<VCFData> fetchAllVariants() override {
-
-        if (!db) {
-            throw std::runtime_error("Database connection is not initialized");
-        }
-
         std::vector<VCFData> result;
 
-        SQLiteSelect select(db, mFetchAllVariantsStmt);
+        SQLiteSelect select(mFetchAllVariantsStmt);
 
         while (select.step() == SQLITE_ROW) {
             VCFSQLiteRecord record;
@@ -595,6 +668,9 @@ public:
         return result;
     }
 
+    /*
+    * Store batch in a staging table for quick insertion
+    */
     void storeBatchInStaging(const std::vector<VCFData>& data) override {
         // Implement batch storage logic here
         std::vector<VCFSQLiteRecord> records;
@@ -607,12 +683,12 @@ public:
         storeInVCFStaging(records);
     }
 
+    /*
+    * Finalize records by moving them from staging to main table in sorted order
+    */
     void finalizeRecords() override {
-        if (!db) {
-            throw std::runtime_error("Database connection is not initialized");
-        }
 
-        SQLiteQuery query(db); 
+        SQLiteQuery query(mConnectionPool); 
 
         const char* sql = R"(
         INSERT INTO variants (chromosome, position, ref, alt, data)
@@ -629,11 +705,7 @@ public:
 private:
 
     void storeInVCFStaging(const std::vector<VCFSQLiteRecord>& records) {
-        if (!db) {
-            throw std::runtime_error("Database connection is not initialized");
-        }
-
-        SQLiteStmt stmt(db, mInsertIntoStagingVCFRecordsStmt);
+        SQLiteStmt stmt(mConnectionPool, mInsertIntoStagingVCFRecordsStmt);
 
         for (auto record : records) {
             stmt.bind_text(1, record.chromosome.c_str());
@@ -648,30 +720,60 @@ private:
 
 private:
 
-    void prepare(const char* sql, sqlite3_stmt** stmt) {
+    void prepare_stmt(const char* sql, sqlite3_stmt** stmt) {
+        sqlite3* db = mConnectionPool.acquire();
+
         char* errMsg = nullptr;
         if (sqlite3_prepare_v2(db, sql, -1, stmt, NULL) != SQLITE_OK) {
             std::string error = errMsg;
             sqlite3_free(errMsg);
             throw std::runtime_error(error);
         }
+
+        mConnectionPool.release(db);
+    }
+
+    void finalize_stmt(sqlite3_stmt* stmt) {
+        sqlite3* db = mConnectionPool.acquire();
+
+        char* errMsg = nullptr;
+        if (sqlite3_finalize(stmt) != SQLITE_OK) {
+            std::string error = errMsg;
+            sqlite3_free(errMsg);
+            throw std::runtime_error(error);
+        }
+
+        mConnectionPool.release(db);
     }
 
 private:
-    sqlite3* db{ nullptr };
     sqlite3_stmt* mInsertIntoStagingVCFRecordsStmt{ nullptr };
     sqlite3_stmt* mFetchAllVariantsStmt{ nullptr };
+    SQLiteConnectionPool mConnectionPool;
 };
 
 
 class VCFProcessor
 {
 public:
-    VCFProcessor(std::unique_ptr<IFileReader> fileReader, std::unique_ptr<IParser> parser, std::unique_ptr<IVCFDal> dal, int numThreads) : mFileReader(std::move(fileReader)), mParser(std::move(parser)), mDal(std::move(dal)), mParseWorkersThreadPool(numThreads), mStoreWorker(1)  { }
+    VCFProcessor(
+        std::unique_ptr<IFileReader> fileReader,
+        std::unique_ptr<IParser> parser,
+        std::unique_ptr<IVCFDal> dal,
+        int numThreads) : 
+            mParseWorkersThreadPool(numThreads),
+            mStoreWorker(1),
+            mFileReader(std::move(fileReader)),
+            mParser(std::move(parser)),
+            mDal(std::move(dal))
+        { }
 
+    /*
+    * Single threaded read file in batches
+    * Process each batch in a worker thread
+    * Once all workers are done, finalize the records
+    */
     void process() {
-        // Implement VCF processing logic here
-
         auto batch = mFileReader->getBatch();
 
         while (!batch.empty()) {
@@ -682,10 +784,11 @@ public:
             batch = mFileReader->getBatch();
         }
 
-        mStoreWorker.enqueue([this]() mutable {
-            mDal->finalizeRecords();
-            });
+        // Wait for all parsing and persistance workers to finish before finalizing records
+        mParseWorkersThreadPool.waitForTasksToFinish();
+        mStoreWorker.waitForTasksToFinish();
 
+        mDal->finalizeRecords();
     }
 
     void processBatch(const std::vector<std::string>& batch) {
@@ -697,7 +800,7 @@ public:
                 VCFData data = mParser->parse(line);
                 vcfDataBatch.emplace(vcfDataBatch.end(), std::move(data));
             } catch (const std::exception& ex) {
-                RaiseWarning(ErrorCodes::ParsingError, "Error parsing line: " + line + ". Error: " + ex.what());
+                RaiseWarning("Error parsing line: " + line + ". Error: " + ex.what());
             }
         }
 
@@ -710,7 +813,7 @@ public:
 
 private:
     ThreadPool mParseWorkersThreadPool;
-    ThreadPool mStoreWorker;
+    ThreadPool mStoreWorker; // used to avoid parallel insertion in the storage
     std::unique_ptr<IFileReader> mFileReader;
     std::unique_ptr<IParser> mParser;
     std::unique_ptr<IVCFDal> mDal;

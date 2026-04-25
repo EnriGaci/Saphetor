@@ -21,4 +21,4 @@ enum class ErrorCodes {
 
 void RaiseError(ErrorCodes code, const std::string& message);
 
-void RaiseWarning(ErrorCodes code, const std::string& message);
+void RaiseWarning(const std::string& message);

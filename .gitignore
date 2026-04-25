@@ -1,3 +1,4 @@
+
 # Ignore all x64 folders recursively
 x64/
 **/x64/
@@ -14,3 +15,8 @@ build/
 # ignore misc
 assignment.final.vcf
 assignment (1).vcf.gz
+
+# ignore db files
+vcf_database.db
+vcf_database.db-shm
+vcf_database.db-wal

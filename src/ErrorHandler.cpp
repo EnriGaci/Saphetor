@@ -5,6 +5,6 @@ void RaiseError(ErrorCodes code, const std::string& message) {
     std::exit(static_cast<int>(code));
 }
 
-void RaiseWarning(ErrorCodes code, const std::string& message) {
+void RaiseWarning(const std::string& message) {
     std::cerr << "Warning: " << message << std::endl;
 }

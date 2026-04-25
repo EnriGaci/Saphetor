@@ -18,23 +18,6 @@ public:
         }
     }
 
-    void worker_loop() {
-        while (true) {
-            std::function<void()> task;
-            {
-                WriteLock lock(queue_mutex);
-                condition.wait(lock, [this] { return stop || !tasks.empty(); });
-                if (stop && tasks.empty()) {
-                    return; // Exit thread
-                }
-                task = std::move(tasks.front());
-                tasks.pop();
-            }
-            task(); // Execute the task
-        }
-    }
-
-    
     ~ThreadPool() {
         {
             std::lock_guard<RWMutex> lock(queue_mutex);
@@ -44,6 +27,11 @@ public:
         for (std::thread &worker : workers) {
             worker.join();
         }
+    }
+
+    void waitForTasksToFinish() {
+        std::unique_lock<RWMutex> lock(queue_mutex);
+        tasks_done_condition.wait(lock, [this] { return tasks.empty() && active_tasks == 0; });
     }
 
     // Template to accept any function/lambda
@@ -57,9 +45,42 @@ public:
     }
 
 private:
+
+    void worker_loop() {
+        while (true) {
+            std::function<void()> task;
+            {
+                WriteLock lock(queue_mutex);
+                condition.wait(lock, [this] { return stop || !tasks.empty(); });
+                if (stop && tasks.empty()) {
+                    return; // Exit thread
+                }
+                task = std::move(tasks.front());
+                tasks.pop();
+            }
+            {
+                WriteLock lock(queue_mutex);
+                active_tasks++;
+            }
+
+            task(); // Execute the task
+
+            {
+                WriteLock lock(queue_mutex);
+                active_tasks--;
+                if (tasks.empty() && active_tasks == 0) {
+                    tasks_done_condition.notify_all(); // Notify that all tasks are done
+                }
+            }
+        }
+    }
+
+private:
     std::vector<std::thread> workers;
     std::queue<std::function<void()>> tasks;
     RWMutex queue_mutex;
     std::condition_variable condition;
+    std::condition_variable tasks_done_condition;
+    size_t active_tasks = 0;
     bool stop = false;
 };
