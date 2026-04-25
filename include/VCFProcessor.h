@@ -297,7 +297,9 @@ private:
 class IVCFDal {
 public:
 
-    virtual void storeBatch(const std::vector<VCFData>& data) = 0;
+    virtual void initDb() = 0;
+    virtual void storeBatchInStaging(const std::vector<VCFData>& data) = 0;
+    virtual void finalizeRecords() = 0;
 
     virtual ~IVCFDal() = default;
 
@@ -348,6 +350,54 @@ struct VCFSQLiteRecord {
 
 };
 
+class SQLiteQuery {
+public:
+    SQLiteQuery(sqlite3* db) : mDb(db) { }
+
+    void exec(const std::string& sql) {
+        char* errMsg = nullptr;
+        if (sqlite3_exec(mDb, sql.c_str(), nullptr, nullptr, &errMsg) != SQLITE_OK) {
+            std::string error = errMsg;
+            sqlite3_free(errMsg);
+            throw std::runtime_error(error);
+        }
+    }
+
+protected:
+    sqlite3* mDb;
+};
+
+class SQLiteStmt : public SQLiteQuery {
+public:
+
+    SQLiteStmt(sqlite3* db, sqlite3_stmt* stmt) : SQLiteQuery(db) {
+        exec("BEGIN TRANSACTION");
+        mStmt = stmt;
+    }
+
+    void bind_text(int pos, const char* value) {
+        sqlite3_bind_text(mStmt, pos, value, -1, SQLITE_STATIC);
+    }
+
+    void bind_int(int pos, int value) {
+        sqlite3_bind_int(mStmt, pos, value);
+    }
+
+    void finalizeBindings() {
+        sqlite3_step(mStmt);   // Execute
+        sqlite3_reset(mStmt);  // Reset for the next set of values
+        sqlite3_clear_bindings(mStmt);
+    }
+
+    ~SQLiteStmt() {
+        // 4. Commit the Transaction flushing all rows to disk at once
+        exec("COMMIT;");
+        if (mStmt) sqlite3_finalize(mStmt);
+    }
+private:
+    sqlite3_stmt* mStmt;
+};
+
 class SQLiteVCFDal : public IVCFDal {
 public:
     SQLiteVCFDal(const std::string& dbName) {
@@ -360,17 +410,8 @@ public:
     // Non-copyable
     SQLiteVCFDal(const SQLiteVCFDal&) = delete;
     SQLiteVCFDal& operator=(const SQLiteVCFDal&) = delete;
-
-    // Movable
-    SQLiteVCFDal(SQLiteVCFDal&& other) noexcept : db(other.db) { other.db = nullptr; }
-    SQLiteVCFDal& operator=(SQLiteVCFDal&& other) noexcept {
-        if (this != &other) {
-            if (db) sqlite3_close(db);
-            db = other.db;
-            other.db = nullptr;
-        }
-        return *this;
-    }
+    SQLiteVCFDal(SQLiteVCFDal&& other) = delete;
+    SQLiteVCFDal& operator=(SQLiteVCFDal && other) = delete;
 
     ~SQLiteVCFDal() {
         if (db) sqlite3_close(db);
@@ -378,7 +419,47 @@ public:
 
 public:
 
-    void storeBatch(const std::vector<VCFData>& data) override {
+    void initDb() override {
+        // Implement database initialization logic here, e.g., create tables if they don't exist
+        SQLiteQuery query(db);
+
+        const std::string createVariantsTable = R"(
+            CREATE TABLE IF NOT EXISTS variants (
+                chromosome TEXT,
+                position INTEGER,
+                ref TEXT,
+                alt TEXT,
+                data TEXT,
+                PRIMARY KEY (chromosome, position)
+            );
+        )";
+        query.exec(createVariantsTable);
+
+        const std::string createVCFTempTable = R"(
+            CREATE TABLE IF NOT EXISTS staging_variants (
+                chromosome TEXT,
+                position INTEGER,
+                ref TEXT,
+                alt TEXT,
+                data TEXT,
+            );
+        )";
+        query.exec(createVCFTempTable);
+
+        const std::string constraints = R"(
+            ALTER TABLE variants 
+            ADD CONSTRAINT valid_json 
+            CHECK (json_valid(data));
+        )";
+
+
+        // prepare statements 
+
+        const char* sqlInsertStagingVCFRecord = "INSERT INTO staging_variants VALUES (?, ?, ?, ?, ?);";
+        prepare(sqlInsertStagingVCFRecord, mInsertIntoStagingVCFRecordsStmt);
+    }
+
+    void storeBatchInStaging(const std::vector<VCFData>& data) override {
         // Implement batch storage logic here
         std::vector<VCFSQLiteRecord> records;
 
@@ -388,22 +469,53 @@ public:
         }
     }
 
-private:
+    void finalizeRecords() override {
+        // Implement batch storage logic here
+        if (!db) {
+            throw std::runtime_error("Database connection is not initialized");
+        }
+
+        SQLiteQuery query(db); // RAII transaction management
+
+        const char* sql = "INSERT INTO variants SELECT * FROM staging_variants ORDER BY chromosome, position ;";
+
+        query.exec(sql);
+    }
 
 private:
-    void exec(const std::string& sql) {
+
+    void storeInVCFStaging(const std::vector<VCFSQLiteRecord>& records) {
+        if (!db) {
+            throw std::runtime_error("Database connection is not initialized");
+        }
+
+        SQLiteStmt stmt(db, mInsertIntoStagingVCFRecordsStmt);
+
+        for (auto record : records) {
+            stmt.bind_text(1, record.chromosome.c_str());
+            stmt.bind_int(2, record.position);
+            stmt.bind_text(3, record.ref.c_str());
+            stmt.bind_text(4, record.alt.c_str());
+            stmt.bind_text(5, record.data.c_str());
+
+            stmt.finalizeBindings();
+        }
+    }
+
+private:
+
+    void prepare(const char* sql, sqlite3_stmt* stmt) {
         char* errMsg = nullptr;
-        if (sqlite3_exec(db, sql.c_str(), nullptr, nullptr, &errMsg) != SQLITE_OK) {
+        if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
             std::string error = errMsg;
             sqlite3_free(errMsg);
             throw std::runtime_error(error);
         }
     }
 
-
-
 private:
-    sqlite3* db;
+    sqlite3* db{ nullptr };
+    sqlite3_stmt* mInsertIntoStagingVCFRecordsStmt{ nullptr };
 };
 
 
@@ -425,6 +537,10 @@ public:
             batch = mFileReader->getBatch();
         }
 
+        mStoreWorker.enqueue([this]() mutable {
+            mDal->finalizeRecords();
+            });
+
     }
 
     void processBatch(const std::vector<std::string>& batch) {
@@ -433,7 +549,6 @@ public:
 
         for (const auto& line : batch) {
             try {
-
                 VCFData data = mParser->parse(line);
                 vcfDataBatch.emplace(vcfDataBatch.end(), std::move(data));
             } catch (const std::exception& ex) {
@@ -442,7 +557,7 @@ public:
         }
 
         mStoreWorker.enqueue([this, vcfDataBatch = std::move(vcfDataBatch)]() mutable {
-            mDal->storeBatch(vcfDataBatch);
+            mDal->storeBatchInStaging(vcfDataBatch);
             });
     }
 

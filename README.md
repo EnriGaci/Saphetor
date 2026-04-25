@@ -3,7 +3,10 @@
 
 # Build instructions
 
-`cmake --build build`
+`mkdir build`<br>
+`cd build` <br>
+`cmake ..` <br>
+`cmake --build .` <br>
 
 # Required environment variables for database access
 

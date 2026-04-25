@@ -42,6 +42,7 @@ int main(int argv, char* argc[]) {
     std::unique_ptr<IFileReader> reader = std::make_unique<VCFReader>(filePath);
     std::unique_ptr<IParser> parser = std::make_unique<VCFLineParser>(filePath);
     std::unique_ptr<IVCFDal> dal = std::make_unique<SQLiteVCFDal>(Configuration::getInstance().getSqliteDBName());
+    dal->initDb();
 
     VCFProcessor processor (std::move(reader), std::move(parser), std::move(dal), threads);
 
