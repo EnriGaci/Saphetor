@@ -30,7 +30,11 @@ set(SQLITE3_DIR "${CMAKE_SOURCE_DIR}/deps/sqlite-amalgamation-3530000")
 # Add your source files here
 file(GLOB SRC_FILES "${CMAKE_SOURCE_DIR}/src/*.cpp")
 file(GLOB SQLITE3_SRC "${SQLITE3_DIR}/sqlite3.c")
+file(GLOB COMMON_FILES "${CMAKE_SOURCE_DIR}/Common/*.cpp")
 ###
+
+add_library(Common SHARED ${COMMON_FILES})
+message(STATUS "COMMON_FILES: ${COMMON_FILES}")
 
 
 add_executable(vcf_importer
@@ -38,12 +42,14 @@ add_executable(vcf_importer
   apps/main.cpp
   # Add more source files as needed
 )
-###
+
+target_link_libraries(vcf_importer PRIVATE Common)
 
 # Include directories 
 include_directories(${CMAKE_SOURCE_DIR}/include)
 target_include_directories(vcf_importer PRIVATE ${SQLITE3_DIR})
 target_include_directories(vcf_importer PRIVATE ${json_SOURCE_DIR}/single_include)
+target_include_directories(vcf_importer PRIVATE ${CMAKE_SOURCE_DIR}/Common)
 ###
 
 # Link libraries 
@@ -68,13 +74,11 @@ add_library(test_utils STATIC tests/Utils.cpp src/ErrorHandler.cpp ../deps/sqlit
 
 add_executable(TestVCFImporter tests/testVCFReader.cpp tests/testVCFLineParser.cpp tests/testVCFSQLite.cpp)
 
-target_link_libraries(TestVCFImporter gtest_main test_utils)
+target_link_libraries(TestVCFImporter gtest_main test_utils Common)
 
 target_include_directories(TestVCFImporter PRIVATE ${SQLITE3_DIR})
 target_include_directories(TestVCFImporter PRIVATE ${json_SOURCE_DIR}/single_include)
+target_include_directories(TestVCFImporter PRIVATE ${CMAKE_SOURCE_DIR}/Common)
 
 add_test(NAME TestVCFImporter COMMAND TestVCFImporter)
 
-
-# Example: link libraries if needed
-# target_link_libraries(MyProject PRIVATE SomeLib

@@ -348,17 +348,7 @@ namespace Validations {
             std::make_unique<AllowMissing>(
                 std::make_unique<IsFloat>(nullptr)
             )
-        },
-        {
-            TOKEN_FILTER,
-            std::make_unique<AllowMissing>(
-                std::make_unique<AllowPass>(
-                    std::make_unique<NoZero>(
-                        std::make_unique<NoWhiteSpace>(nullptr)
-                    )
-                )
-            )
-        },
+        }
     };
 
 } // end namespace
@@ -404,12 +394,12 @@ public:
 
         validate(tokens);
 
-        data.chrom = getTokenValue(tokens[TOKEN_CHROM]);
-        data.pos = std::stoi(getTokenValue(tokens[TOKEN_POS]));
-        data.ref = getTokenValue(tokens[TOKEN_REF]);
-        data.alt = getTokenValue(tokens[TOKEN_ALT]);
-        data.filter = getTokenValue(tokens[TOKEN_FILTER]);
-        data.qual = std::stof(getTokenValue(tokens[TOKEN_QUAL]));
+        data.chrom = tokens[TOKEN_CHROM];
+        data.pos = std::stoi(tokens[TOKEN_POS]);
+        data.ref = tokens[TOKEN_REF];
+        data.alt = tokens[TOKEN_ALT];
+        data.filter = tokens[TOKEN_FILTER];
+        data.qual = std::stof(tokens[TOKEN_QUAL]);
 
         setInfo(data, tokens[TOKEN_INFO]);
         setFormat(data, tokens[TOKEN_FORMAT]);
@@ -554,10 +544,6 @@ private:
             tokens.push_back(token);
         }
         return tokens;
-    }
-
-    std::string getTokenValue(std::string& token) const {
-        return token == "." ? "" : token;
     }
 
 private:
