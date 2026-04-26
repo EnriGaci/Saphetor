@@ -29,3 +29,24 @@ TEST(TestVCFLineParser, TestParseOk) {
     ASSERT_NEAR(std::get<float>(data.info["SOR"]), 0.756, 1e-5);
 
 }
+
+TEST(TestVCFLineParser, TestParseWithCustomValidations) {
+    // Custom: Only check that CHROM and POS are required, others are ignored
+    Validations::ValidationsType customValidations = {
+        {TOKEN_CHROM, std::make_unique<Validations::Required>(nullptr)},
+        {TOKEN_POS, std::make_unique<Validations::IsInteger>(nullptr)}
+    };
+    VCFLineParser parser(TEST_VCF_FILE_PATH, customValidations);
+
+    std::string line = "chr1\t12345\t.\tA\tT\t99.9\tPASS\tINFO\tFORMAT";
+    EXPECT_NO_THROW(parser.parse(line));
+
+    // Should throw if CHROM is missing
+    std::string badLine = "\t\t12345\t.\tA\tT\t99.9\tPASS\tINFO\tFORMAT";
+    EXPECT_ANY_THROW(parser.parse(badLine));
+
+    // Should throw if POS is not integer
+    std::string badLine2 = "chr1\tabc\t.\tA\tT\t99.9\tPASS\tINFO\tFORMAT";
+    EXPECT_ANY_THROW(parser.parse(badLine2));
+}
+

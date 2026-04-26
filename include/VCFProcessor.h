@@ -176,6 +176,11 @@ namespace Validations {
         NoSemicolon(std::unique_ptr<Validator> validator) : NoCharAllowed(std::move(validator), ';') { }
     };
 
+    class NoZero : public NoCharAllowed {
+    public:
+        NoZero(std::unique_ptr<Validator> validator) : NoCharAllowed(std::move(validator), '0') { }
+    };
+
     class MatchRegex : public Validator {
     public:
         MatchRegex(std::unique_ptr<Validator> validator, const std::regex& rgx ) : Validator(std::move(validator)) , mRgx(rgx) { }
@@ -230,7 +235,11 @@ namespace Validations {
         IsInteger(std::unique_ptr<Validator> validator) : Validator(std::move(validator)) { }
         void validate(const std::string& token) override {
             try {
-                (void)std::stoi(token);
+                size_t size;
+                (void)std::stoi(token, &size);
+                if (size != token.size()) {
+                    throw std::runtime_error("Value is not a valid integer");
+                }
             }
             catch (const std::exception&) {
                 throw std::runtime_error("Value is not a valid integer");
@@ -240,6 +249,56 @@ namespace Validations {
             }
         }
     };
+
+    class IsFloat : public Validator {
+    public:
+        IsFloat(std::unique_ptr<Validator> validator) : Validator(std::move(validator)) { }
+        void validate(const std::string& token) override {
+            try {
+                size_t size;
+                (void)std::stof(token, &size);
+                if (size != token.size()) {
+                    throw std::runtime_error("Value is not a valid float");
+                }
+            }
+            catch (const std::exception&) {
+                throw std::runtime_error("Value is not a valid float");
+            }
+            if (mValidator) {
+                mValidator->validate(token);
+            }
+        }
+    };
+
+    /*
+    * MUST BE USED AS TOP DECORATOR when used
+    */
+    class AllowValue : public Validator {
+        public:
+            AllowValue(std::unique_ptr<Validator> validator, const std::string& val) : Validator(std::move(validator)) , mAllowedValue(val) { }
+
+            void validate(const std::string& token) override {
+                if (token == mAllowedValue) {
+                    return; // Allow missing value, skip further validation
+                }
+                if (mValidator) {
+                    mValidator->validate(token);
+                }
+            }
+        private:
+            std::string mAllowedValue;
+    };
+
+    class AllowMissing : public AllowValue {
+    public:
+        AllowMissing(std::unique_ptr<Validator> validator) : AllowValue(std::move(validator), ".") {}
+    };
+
+    class AllowPass : public AllowValue {
+    public:
+        AllowPass(std::unique_ptr<Validator> validator) : AllowValue(std::move(validator), "PASS") {}
+    };
+
 
     inline std::vector<int> idsForValidation = { TOKEN_CHROM, TOKEN_POS, TOKEN_REF, TOKEN_ALT, TOKEN_QUAL, TOKEN_FILTER };
 
@@ -262,9 +321,11 @@ namespace Validations {
         },
         {
             TOKEN_ID,
-            std::make_unique<NoDuplicates>(
-                std::make_unique<NoWhiteSpace>(
-                    std::make_unique<NoSemicolon>(nullptr)
+            std::make_unique<AllowMissing>(
+                std::make_unique<NoDuplicates>(
+                    std::make_unique<NoWhiteSpace>(
+                        std::make_unique<NoSemicolon>(nullptr)
+                    )
                 )
             )
         },
@@ -272,6 +333,29 @@ namespace Validations {
             TOKEN_REF,
             std::make_unique<Required>(
                 std::make_unique<MatchRegex>(nullptr,std::regex("^[ACGTN]+$", std::regex::icase)
+                )
+            )
+        },
+        {
+            TOKEN_ALT,
+            std::make_unique<AllowMissing>(
+                std::make_unique<MatchRegex>(nullptr,std::regex("^([ACGTNacgtn]+|\\*|\\.)$", std::regex::icase)
+                )
+            )
+        },
+        {
+            TOKEN_QUAL,
+            std::make_unique<AllowMissing>(
+                std::make_unique<IsFloat>(nullptr)
+            )
+        },
+        {
+            TOKEN_FILTER,
+            std::make_unique<AllowMissing>(
+                std::make_unique<AllowPass>(
+                    std::make_unique<NoZero>(
+                        std::make_unique<NoWhiteSpace>(nullptr)
+                    )
                 )
             )
         },
@@ -307,15 +391,15 @@ public:
             RaiseWarning("Unexpected number of tokens in line: " + std::to_string(tokens.size()));
         }
 
-        for (int identifier : Validations::idsForValidation) {
+        for (auto [identifier, validator] : mValidators) {
             std::string token = tokens[identifier];
-            mValidators.at(identifier)->validate(token);
+            validator->validate(token);
         }
     }
 
     VCFData parse(const std::string& line) const {
         VCFData data;
-        // Implement parsing logic here to fill the VCFData structure
+
         auto tokens = split(line);
 
         validate(tokens);

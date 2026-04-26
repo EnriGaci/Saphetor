@@ -52,4 +52,12 @@ int main(int argv, char* argc[]) {
     VCFProcessor processor (std::move(reader), std::move(parser), std::move(dal), numberOfThreads);
 
     processor.process();
+
+    dal = std::make_unique<SQLiteVCFDal>(Configuration::getInstance().getSqliteDBName());
+
+    auto records = dal->fetchAllVariants();
+
+    std::cout << "Total records in DB: " << records.size() << std::endl;
+
+    return 0;
 }

@@ -90,6 +90,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="testValidators.cpp" />
     <ClCompile Include="testVCFLineParser.cpp" />
     <ClCompile Include="testVCFReader.cpp" />
     <ClCompile Include="../src/ErrorHandler.cpp" />

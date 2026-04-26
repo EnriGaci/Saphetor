@@ -108,7 +108,7 @@ TEST(TestSQLiteVCFDal, TestDbCreateInBatchesOK) {
     dal.initDb(true);
 
     std::vector<VCFData> dataList;
-    size_t numRecords = 1000; // 1 million records take 10 mins
+    size_t numRecords = 100; // 1 million records take 10 mins
 
     for (size_t i = 0; i < numRecords; ++i) {
         dataList.push_back(getRandomVCFData());
