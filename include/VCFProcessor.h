@@ -107,6 +107,183 @@ inline std::ostream& operator<<(std::ostream& os, const VCFData& data) {
     return os;
 }
 
+# pragma region TokenValidators
+
+#include <unordered_set>
+#include <regex>
+
+static const int TOKEN_CHROM = 0;
+static const int TOKEN_POS = 1;
+static const int TOKEN_ID = 2;
+static const int TOKEN_REF = 3;
+static const int TOKEN_ALT = 4;
+static const int TOKEN_QUAL = 5;
+static const int TOKEN_FILTER = 6;
+static const int TOKEN_INFO = 7;
+static const int TOKEN_FORMAT = 8;
+static const int MIN_EXPECTED_TOKENS_IN_LINE = 9;
+
+namespace Validations {
+
+    class Validator {
+    public:
+        Validator(std::unique_ptr<Validator> validator=nullptr) : mValidator(std::move(validator)) { }
+        virtual void validate(const std::string& /*val*/) { return; };
+        virtual ~Validator() = default;
+    protected:
+        std::unique_ptr<Validator> mValidator{ nullptr };
+    };
+
+    // Validation decorators
+    class HasValue : public Validator {
+    public:
+        HasValue(std::unique_ptr<Validator> validator) : Validator(std::move(validator)) { }
+        void validate(const std::string& token) override {
+            if (token.empty()) {
+                throw std::runtime_error("Required value is empty");
+            }
+            if (mValidator) {
+                mValidator->validate(token);
+            }
+        }
+    };
+
+    class NoCharAllowed : public Validator {
+    public:
+        NoCharAllowed(std::unique_ptr<Validator> validator, char c) : Validator(std::move(validator)) , charToValidate(c) { }
+        void validate(const std::string& token) override {
+            if (token.find(charToValidate) != std::string::npos) {
+                throw std::runtime_error(std::string("Invalid char") + charToValidate + " found");
+            }
+            if (mValidator) {
+                mValidator->validate(token);
+            }
+        }
+
+        virtual ~NoCharAllowed() = default;
+    private:
+        char charToValidate;
+
+    };
+
+    class NoWhiteSpace : public NoCharAllowed {
+    public:
+        NoWhiteSpace(std::unique_ptr<Validator> validator) : NoCharAllowed(std::move(validator), ' ') { }
+    };
+
+    class NoSemicolon : public NoCharAllowed {
+    public:
+        NoSemicolon(std::unique_ptr<Validator> validator) : NoCharAllowed(std::move(validator), ';') { }
+    };
+
+    class MatchRegex : public Validator {
+    public:
+        MatchRegex(std::unique_ptr<Validator> validator, const std::regex& rgx ) : Validator(std::move(validator)) , mRgx(rgx) { }
+
+        void validate(const std::string& token) override {
+            std::smatch match;
+
+            if (!std::regex_search(token, match, mRgx)) {
+                throw std::runtime_error("Invalid token regex format");
+            }
+            if (mValidator) {
+                mValidator->validate(token);
+            }
+        }
+    private:
+        std::regex mRgx;
+    };
+
+
+    class NoDuplicates : public Validator {
+    public:
+        NoDuplicates(std::unique_ptr<Validator> validator) : Validator(std::move(validator)) { }
+        void validate(const std::string& token) override {
+            if (seen.count(token)) {
+                throw std::runtime_error("Duplicate value found: " + token);
+            }
+            seen.insert(token);
+            if (mValidator) {
+                mValidator->validate(token);
+            }
+        };
+    private:
+        std::unordered_set<std::string> seen;
+    };
+
+
+    class Required : public Validator {
+    public:
+        Required(std::unique_ptr<Validator> validator) : Validator(std::move(validator)) { }
+        void validate(const std::string& token) override {
+            if (token == ".") {
+                throw std::runtime_error("Required value is missing");
+            }
+            if (mValidator) {
+                mValidator->validate(token);
+            }
+        }
+    };
+
+    class IsInteger : public Validator {
+    public:
+        IsInteger(std::unique_ptr<Validator> validator) : Validator(std::move(validator)) { }
+        void validate(const std::string& token) override {
+            try {
+                (void)std::stoi(token);
+            }
+            catch (const std::exception&) {
+                throw std::runtime_error("Value is not a valid integer");
+            }
+            if (mValidator) {
+                mValidator->validate(token);
+            }
+        }
+    };
+
+    inline std::vector<int> idsForValidation = { TOKEN_CHROM, TOKEN_POS, TOKEN_REF, TOKEN_ALT, TOKEN_QUAL, TOKEN_FILTER };
+
+    using ValidationsType = std::unordered_map<int, std::shared_ptr<Validator>>;
+
+    inline ValidationsType DefaultValidations = {
+        {
+            TOKEN_CHROM, 
+            std::make_unique<Required>(
+                std::make_unique<NoWhiteSpace>(
+                    std::make_unique<HasValue>(nullptr)
+                )
+            )
+        },
+        {
+            TOKEN_POS, 
+            std::make_unique<Required>(
+                std::make_unique<IsInteger>(nullptr)
+            )
+        },
+        {
+            TOKEN_ID,
+            std::make_unique<NoDuplicates>(
+                std::make_unique<NoWhiteSpace>(
+                    std::make_unique<NoSemicolon>(nullptr)
+                )
+            )
+        },
+        {
+            TOKEN_REF,
+            std::make_unique<Required>(
+                std::make_unique<MatchRegex>(nullptr,std::regex("^[ACGTN]+$", std::regex::icase)
+                )
+            )
+        },
+    };
+
+} // end namespace
+
+
+
+#pragma endregion
+
+
 class IParser {
 public:
 
@@ -117,7 +294,9 @@ public:
 
 class VCFLineParser : public IParser {
 public:
-    VCFLineParser(std::string filePath) {
+    VCFLineParser(const std::string& filePath, const Validations::ValidationsType& validations = Validations::DefaultValidations):
+        mValidators(validations)
+    {
         setFieldsTypes(filePath, mInfoFieldTypes, "##INFO=<");
         setFieldsTypes(filePath, mFormatFieldTypes, "##FORMAT=<");
     }
@@ -128,34 +307,10 @@ public:
             RaiseWarning("Unexpected number of tokens in line: " + std::to_string(tokens.size()));
         }
 
-        std::vector<int> requiredTokens = { TOKEN_CHROM, TOKEN_POS, TOKEN_REF };
-
-        for (int tokenIndex : requiredTokens) {
-            if (tokenIndex >= static_cast<int>(tokens.size())) {
-                throw std::runtime_error("Missing required token at index: " + std::to_string(tokenIndex));
-            }
-
-            std::string value = tokens[tokenIndex];
-            if (value.empty()) {
-                throw std::runtime_error("Required value at column " + std::to_string(tokenIndex) + " is empty");
-            }
-
+        for (int identifier : Validations::idsForValidation) {
+            std::string token = tokens[identifier];
+            mValidators.at(identifier)->validate(token);
         }
-
-        std::vector<int> noWhiteSpacesTokens = { TOKEN_CHROM, TOKEN_ALT };
-
-        for (int tokenIndex : noWhiteSpacesTokens) {
-            if (tokenIndex >= static_cast<int>(tokens.size())) {
-                throw std::runtime_error("Missing required token at index: " + std::to_string(tokenIndex));
-            }
-
-            std::string value = tokens[tokenIndex];
-            bool has_whitespace = std::any_of(value.begin(), value.end(), ::isspace);
-            if (has_whitespace) {
-                throw std::runtime_error("No whitespaces allowed for value at column " + std::to_string(tokenIndex));
-            }
-        }
-
     }
 
     VCFData parse(const std::string& line) const {
@@ -165,7 +320,7 @@ public:
 
         validate(tokens);
 
-        data.chrom = tokens[TOKEN_CHROM];
+        data.chrom = getTokenValue(tokens[TOKEN_CHROM]);
         data.pos = std::stoi(getTokenValue(tokens[TOKEN_POS]));
         data.ref = getTokenValue(tokens[TOKEN_REF]);
         data.alt = getTokenValue(tokens[TOKEN_ALT]);
@@ -179,16 +334,6 @@ public:
     }
 
 private:
-    static const int TOKEN_CHROM = 0;
-    static const int TOKEN_POS = 1;
-    static const int TOKEN_ID = 2;
-    static const int TOKEN_REF = 3;
-    static const int TOKEN_ALT = 4;
-    static const int TOKEN_QUAL = 5;
-    static const int TOKEN_FILTER = 6;
-    static const int TOKEN_INFO = 7;
-    static const int TOKEN_FORMAT = 8;
-    static const int MIN_EXPECTED_TOKENS_IN_LINE = 9;
 
     enum InfoType {
         String,
@@ -301,6 +446,21 @@ private:
         }
     }
 
+    //std::vector<std::string_view> split(const std::string_view line, char delim = '\t') const {
+    //    std::vector<std::string_view> tokens;
+    //    size_t start = 0;
+    //    while (start < line.size()) {
+    //        size_t end = line.find(delim, start);
+    //        if (end == std::string_view::npos) {
+    //            tokens.emplace_back(line.substr(start));
+    //            break;
+    //        }
+    //        tokens.emplace_back(line.substr(start, end - start));
+    //        start = end + 1;
+    //    }
+    //    return tokens;
+    //}
+
     std::vector<std::string> split(const std::string& line, char delim='\t') const {
         std::vector<std::string> tokens;
         std::istringstream ss(line);
@@ -312,13 +472,14 @@ private:
         return tokens;
     }
 
-    std::string getTokenValue(std::string token) const {
+    std::string getTokenValue(std::string& token) const {
         return token == "." ? "" : token;
     }
 
 private:
     std::unordered_map<std::string, InfoType> mInfoFieldTypes;
     std::unordered_map<std::string, InfoType> mFormatFieldTypes;
+    Validations::ValidationsType mValidators;
 };
 
 class IVCFDal {
@@ -769,7 +930,6 @@ public:
         std::unique_ptr<IVCFDal> dal,
         int numThreads) : 
             mParseWorkersThreadPool(numThreads),
-            mStoreWorker(1),
             mFileReader(std::move(fileReader)),
             mParser(std::move(parser)),
             mDal(std::move(dal))
@@ -806,8 +966,8 @@ public:
             try {
                 VCFData data = mParser->parse(line);
                 vcfDataBatch.emplace(vcfDataBatch.end(), std::move(data));
-            } catch (const std::exception& ex) {
-                RaiseWarning("Error parsing line: " + line + ". Error: " + ex.what());
+            } catch (const std::exception& /*ex*/) {
+                //RaiseWarning("Error parsing line: " + line + ". Error: " + ex.what());
             }
         }
 
@@ -820,7 +980,7 @@ public:
 
 private:
     ThreadPool mParseWorkersThreadPool;
-    ThreadPool mStoreWorker; // used to avoid parallel insertion in the storage
+    ThreadPool mStoreWorker{ 1 }; // used to avoid parallel insertion in the storage
     std::unique_ptr<IFileReader> mFileReader;
     std::unique_ptr<IParser> mParser;
     std::unique_ptr<IVCFDal> mDal;

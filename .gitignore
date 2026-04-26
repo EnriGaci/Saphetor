@@ -20,3 +20,5 @@ assignment (1).vcf.gz
 vcf_database.db
 vcf_database.db-shm
 vcf_database.db-wal
+assignment.1000.vcf
+assignment.10000.vcf
