@@ -50,6 +50,15 @@
     <ClInclude Include="include\VCFReader.h">
       <Filter>FileReaders</Filter>
     </ClInclude>
+    <ClInclude Include="include\Validators.h">
+      <Filter>FileReaders</Filter>
+    </ClInclude>
+    <ClInclude Include="include\IParser.h">
+      <Filter>FileReaders</Filter>
+    </ClInclude>
+    <ClInclude Include="include\VCFLineParser.h">
+      <Filter>FileReaders</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

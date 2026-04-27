@@ -5,15 +5,22 @@ VisualStudioVersion = 17.11.35303.130
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "VCFImporter", "Saphetor.vcxproj", "{885D1AD8-916B-4B99-AB15-07EB8B9DC03A}"
 	ProjectSection(ProjectDependencies) = postProject
+		{0013F114-E8BB-4F6C-8DAE-773E23F5B04C} = {0013F114-E8BB-4F6C-8DAE-773E23F5B04C}
 		{2FAE2E55-5D4B-4FFC-8C17-E04A7FE9E75E} = {2FAE2E55-5D4B-4FFC-8C17-E04A7FE9E75E}
 	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "tests", "tests\tests.vcxproj", "{F0A76E52-76D3-414D-85D2-23F68CA52710}"
 	ProjectSection(ProjectDependencies) = postProject
+		{0013F114-E8BB-4F6C-8DAE-773E23F5B04C} = {0013F114-E8BB-4F6C-8DAE-773E23F5B04C}
 		{2FAE2E55-5D4B-4FFC-8C17-E04A7FE9E75E} = {2FAE2E55-5D4B-4FFC-8C17-E04A7FE9E75E}
 	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Common", "Common\Common.vcxproj", "{2FAE2E55-5D4B-4FFC-8C17-E04A7FE9E75E}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DataAccessLayer", "DataAccessLayer\DataAccessLayer.vcxproj", "{0013F114-E8BB-4F6C-8DAE-773E23F5B04C}"
+	ProjectSection(ProjectDependencies) = postProject
+		{2FAE2E55-5D4B-4FFC-8C17-E04A7FE9E75E} = {2FAE2E55-5D4B-4FFC-8C17-E04A7FE9E75E}
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -47,6 +54,14 @@ Global
 		{2FAE2E55-5D4B-4FFC-8C17-E04A7FE9E75E}.Release|x64.Build.0 = Release|x64
 		{2FAE2E55-5D4B-4FFC-8C17-E04A7FE9E75E}.Release|x86.ActiveCfg = Release|Win32
 		{2FAE2E55-5D4B-4FFC-8C17-E04A7FE9E75E}.Release|x86.Build.0 = Release|Win32
+		{0013F114-E8BB-4F6C-8DAE-773E23F5B04C}.Debug|x64.ActiveCfg = Debug|x64
+		{0013F114-E8BB-4F6C-8DAE-773E23F5B04C}.Debug|x64.Build.0 = Debug|x64
+		{0013F114-E8BB-4F6C-8DAE-773E23F5B04C}.Debug|x86.ActiveCfg = Debug|Win32
+		{0013F114-E8BB-4F6C-8DAE-773E23F5B04C}.Debug|x86.Build.0 = Debug|Win32
+		{0013F114-E8BB-4F6C-8DAE-773E23F5B04C}.Release|x64.ActiveCfg = Release|x64
+		{0013F114-E8BB-4F6C-8DAE-773E23F5B04C}.Release|x64.Build.0 = Release|x64
+		{0013F114-E8BB-4F6C-8DAE-773E23F5B04C}.Release|x86.ActiveCfg = Release|Win32
+		{0013F114-E8BB-4F6C-8DAE-773E23F5B04C}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

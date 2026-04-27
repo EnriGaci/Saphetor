@@ -31,10 +31,11 @@ set(SQLITE3_DIR "${CMAKE_SOURCE_DIR}/deps/sqlite-amalgamation-3530000")
 file(GLOB SRC_FILES "${CMAKE_SOURCE_DIR}/src/*.cpp")
 file(GLOB SQLITE3_SRC "${SQLITE3_DIR}/sqlite3.c")
 file(GLOB COMMON_FILES "${CMAKE_SOURCE_DIR}/Common/*.cpp")
+file(GLOB DAL_FILES "${CMAKE_SOURCE_DIR}/DataAccessLayer/*.cpp")
 ###
 
 add_library(Common SHARED ${COMMON_FILES})
-message(STATUS "COMMON_FILES: ${COMMON_FILES}")
+add_library(DataAccessLayer SHARED ${DAL_FILES})
 
 
 add_executable(vcf_importer
@@ -43,20 +44,24 @@ add_executable(vcf_importer
   # Add more source files as needed
 )
 
-target_link_libraries(vcf_importer PRIVATE Common)
+target_link_libraries(vcf_importer PRIVATE Common DataAccessLayer)
 
 # Include directories 
 include_directories(${CMAKE_SOURCE_DIR}/include)
 target_include_directories(vcf_importer PRIVATE ${SQLITE3_DIR})
 target_include_directories(vcf_importer PRIVATE ${json_SOURCE_DIR}/single_include)
 target_include_directories(vcf_importer PRIVATE ${CMAKE_SOURCE_DIR}/Common)
+
+target_include_directories(DataAccessLayer PRIVATE ${json_SOURCE_DIR}/single_include)
+target_include_directories(DataAccessLayer PRIVATE ${CMAKE_SOURCE_DIR}/deps/sqlite-amalgamation-3530000)
+target_include_directories(DataAccessLayer PRIVATE ${CMAKE_SOURCE_DIR}/Common)
+target_include_directories(vcf_importer PRIVATE ${CMAKE_SOURCE_DIR}/DataAccessLayer)
 ###
 
 # Link libraries 
+target_sources(DataAccessLayer PRIVATE ${SQLITE3_SRC})
 target_sources(vcf_importer PRIVATE ${SQLITE3_SRC})
 #
-
-
 
 
 # Tests
@@ -74,11 +79,11 @@ add_library(test_utils STATIC tests/Utils.cpp src/ErrorHandler.cpp ../deps/sqlit
 
 add_executable(TestVCFImporter tests/testVCFReader.cpp tests/testVCFLineParser.cpp tests/testVCFSQLite.cpp)
 
-target_link_libraries(TestVCFImporter gtest_main test_utils Common)
+target_link_libraries(TestVCFImporter gtest_main test_utils Common DataAccessLayer)
 
 target_include_directories(TestVCFImporter PRIVATE ${SQLITE3_DIR})
 target_include_directories(TestVCFImporter PRIVATE ${json_SOURCE_DIR}/single_include)
 target_include_directories(TestVCFImporter PRIVATE ${CMAKE_SOURCE_DIR}/Common)
-
+target_include_directories(TestVCFImporter PRIVATE ${CMAKE_SOURCE_DIR}/DataAccessLayer)
 add_test(NAME TestVCFImporter COMMAND TestVCFImporter)
 

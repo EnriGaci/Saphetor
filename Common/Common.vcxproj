@@ -134,6 +134,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="CommonExport.h" />
+    <ClInclude Include="Logging.h" />
     <ClInclude Include="VCFData.h" />
     <ClInclude Include="ThreadPool.h" />
   </ItemGroup>

@@ -31,5 +31,4 @@
 # Third-Party Libraries
 
 gtest : automatically installed through cmake
-
-# Database Configurarion Environment Variables
+nlohmann : automatically installed through cmake/nuget

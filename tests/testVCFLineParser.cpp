@@ -1,5 +1,6 @@
 #include "VCFProcessor.h"
 #include "Utils.h"
+#include "VCFLineParser.h"
 
 #include "gtest/gtest.h"
 

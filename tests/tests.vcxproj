@@ -53,8 +53,8 @@
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
       <WarningLevel>Level3</WarningLevel>
-      <AdditionalDependencies>$(SolutionDir)x64\Debug\Common.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalIncludeDirectories>$(SolutionDir)Common;$(SolutionDir)\include;$(SolutionDir)\deps\sqlite-amalgamation-3530000;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalDependencies>$(SolutionDir)x64\Debug\DataAccessLayer.lib;$(SolutionDir)x64\Debug\Common.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalIncludeDirectories>$(SolutionDir)DataAccessLayer;$(SolutionDir)Common;$(SolutionDir)\include;$(SolutionDir)\deps\sqlite-amalgamation-3530000;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
@@ -83,9 +83,9 @@
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
-      <AdditionalDependencies>$(ProjectDir)x64\Release\Common.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalIncludeDirectories>$(SolutionDir)Common;$(SolutionDir)\include;$(SolutionDir)\deps\sqlite-amalgamation-3530000;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <AdditionalLibraryDirectories>$(ProjectDir)Common\x64\Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>$(SolutionDir)x64\Release\DataAccessLayer.lib;$(SolutionDir)x64\Release\Common.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalIncludeDirectories>$(SolutionDir)DataAccessLayer;$(SolutionDir)Common;$(SolutionDir)\include;$(SolutionDir)\deps\sqlite-amalgamation-3530000;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalLibraryDirectories>$(SolutionDir)DataAccessLayer\x64\Release;$(SolutionDir)Common\x64\Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -109,6 +109,9 @@
     </ProjectReference>
     <ProjectReference Include="..\Common\Common.vcxproj">
       <Project>{2fae2e55-5d4b-4ffc-8c17-e04a7fe9e75e}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\DataAccessLayer\DataAccessLayer.vcxproj">
+      <Project>{0013f114-e8bb-4f6c-8dae-773e23f5b04c}</Project>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
