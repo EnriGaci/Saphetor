@@ -13,7 +13,7 @@
 #include <thread>
 #include <unordered_map>
 
-std::tuple<std::string, int, bool> parseArgs(int argc, char* argv[]) {
+std::tuple<std::string, int, bool, LogLevel> parseArgs(int argc, char* argv[]) {
     std::string filePath;
     unsigned int hardwareConcurrency = std::thread::hardware_concurrency();
     int threads = hardwareConcurrency ? hardwareConcurrency : 1; // Default to 1 thread
@@ -63,12 +63,14 @@ std::tuple<std::string, int, bool> parseArgs(int argc, char* argv[]) {
         RaiseError(ErrorCodes::MissingVCFFilePath, "Error: --vcf option is required.");
     }
 
-    return { filePath, threads, reset };
+    return { filePath, threads, reset, logLevel };
 }
 
 int main(int argv, char* argc[]) {
 
-    auto [filePath, numberOfThreads, clearDb] = parseArgs(argv, argc);
+    auto [filePath, numberOfThreads, clearDb, logLevel] = parseArgs(argv, argc);
+
+    Logger::getInstance().setLevel(logLevel);
 
     std::unique_ptr<IFileReader> reader = std::make_unique<VCFReader>(filePath);
     std::unique_ptr<IParser> parser = std::make_unique<VCFLineParser>(filePath);

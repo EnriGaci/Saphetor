@@ -23,14 +23,18 @@ public:
     }
 private:
     Logger() : minLevel(LogLevel::INFO) {}
-    LogLevel minLevel;
-    std::string timestamp() {
+        LogLevel minLevel;
+        std::string timestamp() {
         std::time_t now = std::time(nullptr);
         char buf[32];
         std::tm tm_buf;
-        localtime_s(&tm_buf, &now); // thread-safe version for MSVC
+    #if defined(_WIN32) || defined(_WIN64)
+        localtime_s(&tm_buf, &now); // Windows/MSVC
+    #else
+        localtime_r(&now, &tm_buf); // POSIX/Linux
+    #endif
         std::strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &tm_buf);
-        return buf;
+        return buf;    
     }
 
     std::string levelToString(LogLevel level) {
