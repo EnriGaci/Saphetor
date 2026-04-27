@@ -13,6 +13,9 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="FileReaders">
+      <UniqueIdentifier>{d3923cd6-218f-45b9-8d9b-93d4de4fa466}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="apps\main.cpp">
@@ -40,6 +43,12 @@
     </ClInclude>
     <ClInclude Include="deps\sqlite-amalgamation-3530000\sqlite3.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\IFileReader.h">
+      <Filter>FileReaders</Filter>
+    </ClInclude>
+    <ClInclude Include="include\VCFReader.h">
+      <Filter>FileReaders</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

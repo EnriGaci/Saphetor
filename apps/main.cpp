@@ -1,5 +1,6 @@
 #include "VCFProcessor.h"
 #include "ErrorHandler.h"
+#include "VCFReader.h"
 
 #include <iostream>
 #include <string>

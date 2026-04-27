@@ -27,8 +27,10 @@
   <ItemGroup>
     <ClInclude Include="include\Configuration.h" />
     <ClInclude Include="include\ErrorHandler.h" />
+    <ClInclude Include="include\IFileReader.h" />
     <ClInclude Include="include\VCFProcessor.h" />
     <ClInclude Include="deps\sqlite-amalgamation-3530000\sqlite3.h" />
+    <ClInclude Include="include\VCFReader.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

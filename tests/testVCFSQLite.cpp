@@ -43,6 +43,7 @@ VCFData getTestVCFData() {
     data.pos = 109754177;
     data.ref = "T";
     data.alt = "C";
+    data.qual = 937.77f;
     data.info["AC"] = 2;
     data.info["AF"] = 1.0f;
     data.info["AN"] = 2;
@@ -68,7 +69,22 @@ TEST(TestVCFSQLiteRecord, TestSQLiteRecordCreation) {
     ASSERT_EQ(record.position, 109754177);
     ASSERT_EQ(record.ref, "T");
     ASSERT_EQ(record.alt, "C");
-    ASSERT_EQ(record.data, "{\"FILTER\":\"\",\"FORMAT\":\"null\",\"INFO\":\"{\\\"AC\\\":2,\\\"AF\\\":1.0,\\\"AN\\\":2,\\\"DP\\\":31,\\\"ExcessHet\\\":3.0102999210357666,\\\"FS\\\":0.0,\\\"MLEAC\\\":2,\\\"MLEAF\\\":1.0,\\\"MQ\\\":60.0,\\\"QD\\\":30.25,\\\"SOR\\\":0.7559999823570251}\",\"QUAL\":-107374176.0}");
+
+    auto jsonData = nlohmann::json::parse(record.data);
+    auto infoMap =record.getDataInfoFromJson(jsonData);
+
+    ASSERT_NEAR( jsonData["QUAL"].get<float>(), 937.77f, 1e-5);
+    ASSERT_EQ(std::get<int>(infoMap["AC"]), 2);
+    ASSERT_NEAR(std::get<float>(infoMap["AF"]), 1.0f, 1e-5);
+    ASSERT_EQ(std::get<int>(infoMap["AN"]), 2);
+    ASSERT_EQ(std::get<int>(infoMap["DP"]), 31);
+    ASSERT_NEAR(std::get<float>(infoMap["ExcessHet"]), 3.0103f, 1e-5);
+    ASSERT_NEAR(std::get<float>(infoMap["FS"]), 0.0f, 1e-5);
+    ASSERT_EQ(std::get<int>(infoMap["MLEAC"]), 2);
+    ASSERT_NEAR(std::get<float>(infoMap["MLEAF"]), 1.0f, 1e-5);
+    ASSERT_NEAR(std::get<float>(infoMap["MQ"]), 60.0f, 1e-5);
+    ASSERT_NEAR(std::get<float>(infoMap["QD"]), 30.25f, 1e-5);
+    ASSERT_NEAR(std::get<float>(infoMap["SOR"]), 0.756f, 1e-5);
 }
 
 TEST(TestSQLiteVCFDal, TestDbReadDataOk) {

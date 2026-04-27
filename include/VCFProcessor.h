@@ -1,111 +1,17 @@
 #pragma once
-#include "ThreadPool.h"
-#include "ErrorHandler.h"
-
-#include <fstream>
 #include <string>
 #include <string_view>
 #include <sstream>
 #include <variant>
+#include <fstream>
 
-class IFileReader {
-public:
-
-    virtual std::vector<std::string> getBatch() = 0;
-
-    virtual ~IFileReader() = default;
-};
-
-class VCFReader : public IFileReader
-{
-public:
-    VCFReader(const std::string& filePath, size_t batchSize = 100) : mBatchSize(batchSize) {
-        mFileStream = std::ifstream(filePath);
-
-        if (!mFileStream.is_open()) {
-            RaiseError(ErrorCodes::CouldNotOpenVCFFile, "Could not open file: " + filePath);
-        }
-
-        moveStreamToDataBegin();
-    }
-
-    std::vector<std::string> getBatch() override {
-        // Read a batch of data from the file stream and return it
-        size_t i = 0;
-        std::vector<std::string> batch(mBatchSize);
-        while (i < mBatchSize) {
-            std::string line;
-            if (!std::getline(mFileStream, line)) {
-                break; // End of file or error
-            }
-            batch[i]=line;
-            i++;
-        }
-
-        if (i != mBatchSize) {
-            batch.resize(i);
-        }
-
-        return batch;
-    }
-
-private:
-    // Moves stream passed information fields
-    void moveStreamToDataBegin() {
-        std::string line;
-        while (std::getline(mFileStream, line)) {
-            if (!line.empty() && line.size() > 1 && line[1] != '#') {
-                break;
-            }
-        }
-    }
-
-private:
-    std::ifstream mFileStream;
-    size_t mBatchSize;
-};
+#include "IFileReader.h"
+#include "ThreadPool.h"
+#include "ErrorHandler.h"
+#include "VCFData.h"
 
 
-using VCFDataMapValue = std::variant<std::string, int, float, bool>;
-using VCFDataMap = std::unordered_map<std::string, VCFDataMapValue>;
 
-struct VCFData {
-    std::string chrom;
-    int pos;
-    std::string ref;
-    std::string alt;
-    std::string filter;
-    float qual;
-    VCFDataMap info;
-    VCFDataMap format;
-};
-
-inline std::ostream& operator<<(std::ostream& os, const VCFData& data) {
-    os << "chrom: " << data.chrom
-       << ", pos: " << data.pos
-       << ", ref: " << data.ref
-       << ", alt: " << data.alt
-       << ", filter: " << data.filter
-       << ", qual: " << data.qual;
-    os << ", info: {";
-    bool first = true;
-    for (const auto& [key, value] : data.info) {
-        if (!first) os << ", ";
-        os << key << ": ";
-        std::visit([&os](auto&& arg) { os << arg; }, value);
-        first = false;
-    }
-    os << "}, format: {";
-    first = true;
-    for (const auto& [key, value] : data.format) {
-        if (!first) os << ", ";
-        os << key << ": ";
-        std::visit([&os](auto&& arg) { os << arg; }, value);
-        first = false;
-    }
-    os << "}";
-    return os;
-}
 
 # pragma region TokenValidators
 
@@ -779,7 +685,7 @@ public:
 
     std::string column_text(int index) {
         const char* text = reinterpret_cast<const char*>(sqlite3_column_text(mStmt, index));
-        return text;
+        return text ? text : "";
     }
 
     int column_int(int index) {
@@ -854,7 +760,7 @@ public:
         catch (const std::exception& ex) {
             // Ignore error if constraint already exists
             if (std::string(ex.what()).find("already exists") == std::string::npos) {
-                throw; // ignore if it's the already exists
+                throw; // Only re-throw if it's NOT the "already exists" error
             }
         }
 

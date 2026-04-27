@@ -1,5 +1,6 @@
 #include "VCFProcessor.h"
 #include "Utils.h"
+#include "VCFReader.h"
 
 #include "gtest/gtest.h"
 #include <string>
