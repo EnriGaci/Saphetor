@@ -76,15 +76,19 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(googletest)
 
 enable_testing()
-# Create a static library for shared test utilities
-add_library(test_utils STATIC tests/Utils.cpp ${SRC_FILES} ../deps/sqlite-amalgamation-3530000/sqlite3.c)
 
+add_library(src_implementation STATIC ${SRC_FILES})
+target_link_libraries(src_implementation PRIVATE Common)
+target_include_directories(src_implementation PRIVATE ${CMAKE_SOURCE_DIR}/Common)
+
+# Create a static library for shared test utilities
+add_library(test_utils STATIC tests/Utils.cpp  ../deps/sqlite-amalgamation-3530000/sqlite3.c)
 
 file(GLOB TEST_SRC_FILES "${CMAKE_SOURCE_DIR}/tests/*.cpp")
 
 add_executable(TestVCFImporter ${TEST_SRC_FILES})
 
-target_link_libraries(TestVCFImporter gtest_main test_utils Common DataAccessLayer)
+target_link_libraries(TestVCFImporter gtest_main test_utils Common DataAccessLayer src_implementation)
 
 target_include_directories(TestVCFImporter PRIVATE ${SQLITE3_DIR})
 target_include_directories(TestVCFImporter PRIVATE ${json_SOURCE_DIR}/single_include)

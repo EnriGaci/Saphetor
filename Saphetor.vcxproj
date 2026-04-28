@@ -24,6 +24,7 @@
     <ClCompile Include="src\Configuration.cpp" />
     <ClCompile Include="deps\sqlite-amalgamation-3530000\sqlite3.c" />
     <ClCompile Include="src\Validators.cpp" />
+    <ClCompile Include="src\VCFLineParser.cpp" />
     <ClCompile Include="src\VCFReader.cpp" />
   </ItemGroup>
   <ItemGroup>
