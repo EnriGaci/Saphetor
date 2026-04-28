@@ -84,3 +84,9 @@ All methods throw `std::runtime_error` on SQLite failure.
 ## Thread Safety
 
 `SQLiteConnectionPool` manages a pool of connections (default size: `10`). `acquire()` blocks until a connection is available; the caller must call `release()` when done. `SQLiteVCFDal` uses a scoped RAII helper (`ScopedDb`) to ensure connections are always released.
+
+
+# Not implemented
+
+- Reading FORMAT fields
+- Validating INFO values

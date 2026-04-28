@@ -1,5 +1,3 @@
-#pragma once
-
 #include "VCFProcessor.h"
 
 #include <gtest/gtest.h>

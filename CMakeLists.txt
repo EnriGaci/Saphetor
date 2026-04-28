@@ -80,7 +80,9 @@ enable_testing()
 add_library(test_utils STATIC tests/Utils.cpp ${SRC_FILES} ../deps/sqlite-amalgamation-3530000/sqlite3.c)
 
 
-add_executable(TestVCFImporter tests/testVCFReader.cpp tests/testVCFLineParser.cpp tests/testVCFSQLite.cpp)
+file(GLOB TEST_SRC_FILES "${CMAKE_SOURCE_DIR}/tests/*.cpp")
+
+add_executable(TestVCFImporter ${TEST_SRC_FILES})
 
 target_link_libraries(TestVCFImporter gtest_main test_utils Common DataAccessLayer)
 

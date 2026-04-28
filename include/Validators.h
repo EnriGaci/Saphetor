@@ -1,205 +1,169 @@
 #pragma once
+#include "VCFConstants.h"
 
 #include <unordered_set>
+#include <unordered_map>
 #include <regex>
-
-static const int TOKEN_CHROM = 0;
-static const int TOKEN_POS = 1;
-static const int TOKEN_ID = 2;
-static const int TOKEN_REF = 3;
-static const int TOKEN_ALT = 4;
-static const int TOKEN_QUAL = 5;
-static const int TOKEN_FILTER = 6;
-static const int TOKEN_INFO = 7;
-static const int TOKEN_FORMAT = 8;
-static const int MIN_EXPECTED_TOKENS_IN_LINE = 9;
 
 namespace Validations {
 
     /*
-    * Base class for validations
+    * Base class for validations following Decorator pattern
     * Each validation can have a nested validation to allow chaining multiple validations together
     * 
     * Implement validate method to perform custom validations
     */
     class Validator {
     public:
-        Validator(std::unique_ptr<Validator> validator=nullptr) : mValidator(std::move(validator)) { }
-        virtual void validate(const std::string& /*val*/) { return; };
+        Validator(std::unique_ptr<Validator> validator=nullptr);
+        virtual void validate(const std::string& /*val*/);;
         virtual ~Validator() = default;
     protected:
         std::unique_ptr<Validator> mValidator{ nullptr };
     };
 
+    /**
+     * @brief Checks that token is not empty.
+     * @throws std::runtime_error if the token is empty.
+     */
     class HasValue : public Validator {
     public:
-        HasValue(std::unique_ptr<Validator> validator) : Validator(std::move(validator)) { }
-        void validate(const std::string& token) override {
-            if (token.empty()) {
-                throw std::runtime_error("Required value is empty");
-            }
-            if (mValidator) {
-                mValidator->validate(token);
-            }
-        }
+        HasValue(std::unique_ptr<Validator> validator);
+        void validate(const std::string& token) override;
     };
 
+    /**
+     * @brief Checks that token does not contain a specific character.
+     * @throws std::runtime_error if the token contains the forbidden character.
+     */
     class NoCharAllowed : public Validator {
     public:
-        NoCharAllowed(std::unique_ptr<Validator> validator, char c) : Validator(std::move(validator)) , charToValidate(c) { }
-        void validate(const std::string& token) override {
-            if (token.find(charToValidate) != std::string::npos) {
-                throw std::runtime_error(std::string("Invalid char") + charToValidate + " found");
-            }
-            if (mValidator) {
-                mValidator->validate(token);
-            }
-        }
-
+        NoCharAllowed(std::unique_ptr<Validator> validator, char c);
+        void validate(const std::string& token) override;
         virtual ~NoCharAllowed() = default;
     private:
         char charToValidate;
-
     };
 
+    /**
+     * @brief Checks that token does not contain whitespace characters.
+     * @throws std::runtime_error if the token contains whitespace.
+     */
     class NoWhiteSpace : public NoCharAllowed {
     public:
-        NoWhiteSpace(std::unique_ptr<Validator> validator) : NoCharAllowed(std::move(validator), ' ') { }
+        NoWhiteSpace(std::unique_ptr<Validator> validator);
     };
 
+    /**
+     * @brief Checks that token does not contain a semicolon (';').
+     * @throws std::runtime_error if the token contains a semicolon.
+     */
     class NoSemicolon : public NoCharAllowed {
     public:
-        NoSemicolon(std::unique_ptr<Validator> validator) : NoCharAllowed(std::move(validator), ';') { }
+        NoSemicolon(std::unique_ptr<Validator> validator);
     };
 
+    /**
+     * @brief Checks that token does not contain the character '0'.
+     * @throws std::runtime_error if the token contains '0'.
+     */
     class NoZero : public NoCharAllowed {
     public:
-        NoZero(std::unique_ptr<Validator> validator) : NoCharAllowed(std::move(validator), '0') { }
+        NoZero(std::unique_ptr<Validator> validator);
     };
 
+    /**
+     * @brief Checks that token matches a given regular expression.
+     * @throws std::runtime_error if the token does not match the regex.
+     */
     class MatchRegex : public Validator {
     public:
-        MatchRegex(std::unique_ptr<Validator> validator, const std::regex& rgx ) : Validator(std::move(validator)) , mRgx(rgx) { }
-
-        void validate(const std::string& token) override {
-            std::smatch match;
-
-            if (!std::regex_search(token, match, mRgx)) {
-                throw std::runtime_error("Invalid token regex format");
-            }
-            if (mValidator) {
-                mValidator->validate(token);
-            }
-        }
+        MatchRegex(std::unique_ptr<Validator> validator, const std::regex& rgx );
+        void validate(const std::string& token) override;
     private:
         std::regex mRgx;
     };
 
-
+    /**
+     * @brief Checks that token has not been seen before (no duplicates).
+     * @throws std::runtime_error if the token is a duplicate.
+     */
     class NoDuplicates : public Validator {
     public:
-        NoDuplicates(std::unique_ptr<Validator> validator) : Validator(std::move(validator)) { }
-        void validate(const std::string& token) override {
-            if (seen.count(token)) {
-                throw std::runtime_error("Duplicate value found: " + token);
-            }
-            seen.insert(token);
-            if (mValidator) {
-                mValidator->validate(token);
-            }
-        };
+        NoDuplicates(std::unique_ptr<Validator> validator);
+        void validate(const std::string& token) override;;
     private:
         std::unordered_set<std::string> seen;
     };
 
-
+    /**
+     * @brief Checks that token is present and not the "." (Missing).
+     * @throws std::runtime_error if the token is missing.
+     */
     class Required : public Validator {
     public:
-        Required(std::unique_ptr<Validator> validator) : Validator(std::move(validator)) { }
-        void validate(const std::string& token) override {
-            if (token == ".") {
-                throw std::runtime_error("Required value is missing");
-            }
-            if (mValidator) {
-                mValidator->validate(token);
-            }
-        }
+        Required(std::unique_ptr<Validator> validator);
+        void validate(const std::string& token) override;
     };
 
+    /**
+     * @brief Checks that token is a valid integer.
+     * @throws std::runtime_error if the token is not an integer.
+     */
     class IsInteger : public Validator {
     public:
-        IsInteger(std::unique_ptr<Validator> validator) : Validator(std::move(validator)) { }
-        void validate(const std::string& token) override {
-            try {
-                size_t size;
-                (void)std::stoi(token, &size);
-                if (size != token.size()) {
-                    throw std::runtime_error("Value is not a valid integer");
-                }
-            }
-            catch (const std::exception&) {
-                throw std::runtime_error("Value is not a valid integer");
-            }
-            if (mValidator) {
-                mValidator->validate(token);
-            }
-        }
+        IsInteger(std::unique_ptr<Validator> validator);
+        void validate(const std::string& token) override;
     };
 
+    /**
+     * @brief Checks that token is a valid floating-point number.
+     * @throws std::runtime_error if the token is not a float.
+     */
     class IsFloat : public Validator {
     public:
-        IsFloat(std::unique_ptr<Validator> validator) : Validator(std::move(validator)) { }
-        void validate(const std::string& token) override {
-            try {
-                size_t size;
-                (void)std::stof(token, &size);
-                if (size != token.size()) {
-                    throw std::runtime_error("Value is not a valid float");
-                }
-            }
-            catch (const std::exception&) {
-                throw std::runtime_error("Value is not a valid float");
-            }
-            if (mValidator) {
-                mValidator->validate(token);
-            }
-        }
+        IsFloat(std::unique_ptr<Validator> validator);
+        void validate(const std::string& token) override;
     };
 
     /*
     * MUST BE USED AS TOP DECORATOR when used
     */
+    /**
+     * @brief Allows a specific value for the token, bypassing other checks if matched.
+     * @throws std::runtime_error if the token does not match the allowed value and fails other checks.
+     */
     class AllowValue : public Validator {
         public:
-            AllowValue(std::unique_ptr<Validator> validator, const std::string& val) : Validator(std::move(validator)) , mAllowedValue(val) { }
-
-            void validate(const std::string& token) override {
-                if (token == mAllowedValue) {
-                    return; // Allow missing value, skip further validation
-                }
-                if (mValidator) {
-                    mValidator->validate(token);
-                }
-            }
+            AllowValue(std::unique_ptr<Validator> validator, const std::string& val);
+            void validate(const std::string& token) override;
         private:
             std::string mAllowedValue;
     };
 
+    /**
+     * @brief Allows the token to be missing (the special value "."), bypassing other checks if matched.
+     * @throws std::runtime_error if the token does not match the allowed value and fails other checks.
+     */
     class AllowMissing : public AllowValue {
     public:
-        AllowMissing(std::unique_ptr<Validator> validator) : AllowValue(std::move(validator), ".") {}
+        AllowMissing(std::unique_ptr<Validator> validator);
     };
 
+    /**
+     * @brief Allows the token to be 'PASS', bypassing other checks if matched.
+     * @throws std::runtime_error if the token does not match the allowed value and fails other checks.
+     */
     class AllowPass : public AllowValue {
     public:
-        AllowPass(std::unique_ptr<Validator> validator) : AllowValue(std::move(validator), "PASS") {}
+        AllowPass(std::unique_ptr<Validator> validator);
     };
 
     inline std::vector<int> idsForValidation = { TOKEN_CHROM, TOKEN_POS, TOKEN_REF, TOKEN_ALT, TOKEN_QUAL, TOKEN_FILTER };
 
     using ValidationsType = std::unordered_map<int, std::shared_ptr<Validator>>;
 
-    inline ValidationsType DefaultValidations = {
+    inline const ValidationsType DefaultValidations = {
         {
             TOKEN_CHROM, 
             std::make_unique<Required>(

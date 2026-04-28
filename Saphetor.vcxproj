@@ -23,6 +23,7 @@
     <ClCompile Include="src\ErrorHandler.cpp" />
     <ClCompile Include="src\Configuration.cpp" />
     <ClCompile Include="deps\sqlite-amalgamation-3530000\sqlite3.c" />
+    <ClCompile Include="src\Validators.cpp" />
     <ClCompile Include="src\VCFReader.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -31,6 +32,7 @@
     <ClInclude Include="include\IFileReader.h" />
     <ClInclude Include="include\IParser.h" />
     <ClInclude Include="include\Validators.h" />
+    <ClInclude Include="include\VCFConstants.h" />
     <ClInclude Include="include\VCFLineParser.h" />
     <ClInclude Include="include\VCFProcessor.h" />
     <ClInclude Include="deps\sqlite-amalgamation-3530000\sqlite3.h" />
