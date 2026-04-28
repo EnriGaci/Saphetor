@@ -44,17 +44,16 @@ add_executable(vcf_importer
   # Add more source files as needed
 )
 
-target_link_libraries(DataAccessLayer PRIVATE Common)
-target_link_libraries(vcf_importer PRIVATE Common DataAccessLayer)
-
 # Include directories 
 include_directories(${CMAKE_SOURCE_DIR}/include)
 
+target_link_libraries(DataAccessLayer PRIVATE Common)
 target_include_directories(DataAccessLayer PRIVATE ${json_SOURCE_DIR}/single_include)
 target_include_directories(DataAccessLayer PRIVATE ${CMAKE_SOURCE_DIR}/deps/sqlite-amalgamation-3530000)
 target_include_directories(DataAccessLayer PRIVATE ${CMAKE_SOURCE_DIR}/Common)
 
 
+target_link_libraries(vcf_importer PRIVATE Common DataAccessLayer)
 target_include_directories(vcf_importer PRIVATE ${SQLITE3_DIR})
 target_include_directories(vcf_importer PRIVATE ${json_SOURCE_DIR}/single_include)
 target_include_directories(vcf_importer PRIVATE ${CMAKE_SOURCE_DIR}/Common)
@@ -78,8 +77,8 @@ FetchContent_MakeAvailable(googletest)
 enable_testing()
 
 add_library(src_implementation STATIC ${SRC_FILES})
-target_link_libraries(src_implementation PRIVATE Common)
-target_include_directories(src_implementation PRIVATE ${CMAKE_SOURCE_DIR}/Common)
+target_link_libraries(src_implementation PRIVATE Common DataAccessLayer)
+target_include_directories(src_implementation PRIVATE ${CMAKE_SOURCE_DIR}/Common ${CMAKE_SOURCE_DIR}/DataAccessLayer)
 
 # Create a static library for shared test utilities
 add_library(test_utils STATIC tests/Utils.cpp  ../deps/sqlite-amalgamation-3530000/sqlite3.c)

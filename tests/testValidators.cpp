@@ -1,4 +1,4 @@
-#include "VCFProcessor.h"
+#include "Validators.h"
 
 #include <gtest/gtest.h>
 #include <regex>
