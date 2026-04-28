@@ -1,10 +1,6 @@
 #pragma once
 #include "CommonExport.h"
 
-#ifdef _MSC_VER
-#pragma warning(disable: 4251)
-#endif
-
 #include <vector>
 #include <thread>
 #include <queue>
@@ -18,6 +14,9 @@ using WriteLock = std::unique_lock<RWMutex>;
 
 
 
+/*
+* @brief A simple thread pool implementation that allows enqueuing tasks and waits for their completion.
+*/
 class COMMON_API ThreadPool {
 public:
     ThreadPool(size_t num_threads);

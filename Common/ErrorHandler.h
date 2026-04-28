@@ -1,7 +1,9 @@
 #pragma once
+#include "CommonExport.h"
+
 #include <iostream>
 
-enum class ErrorCodes {
+enum class COMMON_API ErrorCodes {
     Success = 0,
 
     // Errors
@@ -19,6 +21,6 @@ enum class ErrorCodes {
     UnknownError
 };
 
-void RaiseError(ErrorCodes code, const std::string& message);
+COMMON_API void RaiseError(ErrorCodes code, const std::string& message);
 
-void RaiseWarning(const std::string& message);
+COMMON_API void RaiseWarning(const std::string& message);

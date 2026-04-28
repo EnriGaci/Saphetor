@@ -101,7 +101,6 @@
     <ClCompile Include="testValidators.cpp" />
     <ClCompile Include="testVCFLineParser.cpp" />
     <ClCompile Include="testVCFReader.cpp" />
-    <ClCompile Include="../src/ErrorHandler.cpp" />
     <ClCompile Include="testVCFSQLite.cpp" />
     <ClCompile Include="Utils.cpp" />
     <ClCompile Include="..\deps\sqlite-amalgamation-3530000\sqlite3.c" />

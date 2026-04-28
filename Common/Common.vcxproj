@@ -133,12 +133,16 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="Configuration.h" />
+    <ClInclude Include="ErrorHandler.h" />
     <ClInclude Include="CommonExport.h" />
     <ClInclude Include="Logging.h" />
     <ClInclude Include="VCFData.h" />
     <ClInclude Include="ThreadPool.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Configuration.cpp" />
+    <ClCompile Include="ErrorHandler.cpp" />
     <ClCompile Include="ThreadPool.cpp" />
     <ClCompile Include="VCFData.cpp" />
   </ItemGroup>

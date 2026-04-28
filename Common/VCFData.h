@@ -1,15 +1,11 @@
 #pragma once
-
-#ifdef _MSC_VER
-#pragma warning(disable: 4251)
-#endif
+#include "CommonExport.h"
 
 #include <variant>
 #include <unordered_map>
 #include <string>
 #include <iostream>
 
-#include "CommonExport.h"
 
 
 using VCFDataMapValue = std::variant<std::string, int, float, bool>;
