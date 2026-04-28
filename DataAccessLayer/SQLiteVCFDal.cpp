@@ -1,6 +1,13 @@
 #include "SQLiteVCFDal.h"
+#include "Logging.h"
 
-SQLiteVCFDal::SQLiteVCFDal(const std::string& dbName) : mConnectionPool(dbName, 10) {
+#include <mutex>
+
+static std::once_flag db_init_flag;
+
+SQLiteVCFDal::SQLiteVCFDal(const std::string& dbName, bool clearDbTables) : mConnectionPool(dbName) {
+    std::call_once(db_init_flag, [this]() { initDb();});
+    if (clearDbTables) { clearTables(); }
     prepareStatments();
 }
 
@@ -9,21 +16,15 @@ SQLiteVCFDal::~SQLiteVCFDal() {
     if (mInsertIntoStagingVCFRecordsStmt) finalize_stmt(mInsertIntoStagingVCFRecordsStmt);
 }
 
-void SQLiteVCFDal::initDb(bool clearDb) {
-    // Implement database initialization logic here, e.g., create tables if they don't exist
+void SQLiteVCFDal::initDb() {
     SQLiteQuery query(mConnectionPool);
 
     // Performance Tuning
     query.exec("PRAGMA journal_mode = WAL;"); // Better concurrency
     query.exec("PRAGMA synchronous = NORMAL;"); // Faster writes
 
-    if (clearDb) {
-        const std::string droptables = R"(
-                DROP TABLE IF EXISTS variants;
-                DROP TABLE IF EXISTS staging_variants;
-            )";
-        query.exec(droptables);
-    }
+
+    LOG(LogLevel::INFO, "Creating tables if they do not exist...");
 
     const std::string createVariantsTable = R"(
             CREATE TABLE IF NOT EXISTS variants (
@@ -162,3 +163,14 @@ void SQLiteVCFDal::finalize_stmt(sqlite3_stmt* stmt) {
     }
 }
 
+
+void SQLiteVCFDal::clearTables() {
+    SQLiteQuery query(mConnectionPool);
+
+    LOG(LogLevel::INFO, "Clearing existing data from database...");
+    const std::string droptables = R"(
+            DELETE FROM variants;
+            DELETE FROM staging_variants;
+        )";
+    query.exec(droptables);
+}

@@ -90,8 +90,7 @@ TEST(TestVCFSQLiteRecord, TestSQLiteRecordCreation) {
 }
 
 TEST(TestSQLiteVCFDal, TestDbReadDataOk) {
-    SQLiteVCFDal dal("test_vcf.db");
-    dal.initDb(true);
+    SQLiteVCFDal dal("test_vcf.db", true);
 
     std::vector<VCFData> dataList;
     dataList.push_back(getTestVCFData());
@@ -121,9 +120,14 @@ TEST(TestSQLiteVCFDal, TestDbReadDataOk) {
     ASSERT_NEAR(std::get<float>(data.info["SOR"]), 0.756, 1e-5);
 }
 
+/*
+* Insert records in batches
+* Call finalize
+* Read persisted records
+* Verify the order 
+*/
 TEST(TestSQLiteVCFDal, TestDbCreateInBatchesOK) {
-    SQLiteVCFDal dal("test_vcf.db");
-    dal.initDb(true);
+    SQLiteVCFDal dal("test_vcf.db", true);
 
     std::vector<VCFData> dataList;
     size_t numRecords = 100; // 1 million records take 10 mins
@@ -131,10 +135,6 @@ TEST(TestSQLiteVCFDal, TestDbCreateInBatchesOK) {
     for (size_t i = 0; i < numRecords; ++i) {
         dataList.push_back(getRandomVCFData());
     }
-
-    //for (int batchStart = 0; batchStart < numRecords; batchStart += 10000) {
-    //    dal.storeBatchInStaging({ dataList.begin() + batchStart, dataList.begin() + batchStart + 10000 });
-    //}
 
     dal.storeBatchInStaging(dataList);
 
@@ -145,11 +145,6 @@ TEST(TestSQLiteVCFDal, TestDbCreateInBatchesOK) {
 
     dataList.clear();
 
-    //for (int batchStart = 0; batchStart < numRecords; batchStart += 10000) {
-    //    for (size_t i = batchStart; i < batchStart + 10000; ++i) {
-    //        dataList.push_back(getRandomVCFData());
-    //    }
-    //}
 
     for (size_t i = 0; i < numRecords; ++i) {
         dataList.push_back(getRandomVCFData());

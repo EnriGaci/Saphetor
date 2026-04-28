@@ -8,14 +8,6 @@ class DAL_API IVCFDal {
 public:
 
     /*
-    * Initialize the database
-    * 
-    * @param clearDb If true, existing data will be cleared. Default is false.
-    */
-    virtual void initDb(bool clearDb = false) = 0;
-
-
-    /*
     * Store batch in a staging table for quick insertion
     * 
     * @param data The batch of VCFData to be stored in the staging table.

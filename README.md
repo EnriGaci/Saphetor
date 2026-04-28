@@ -41,7 +41,7 @@
 
 # Third-Party Libraries
 
-gtest : automatically installed through cmake
+gtest : automatically installed through cmake <br>
 nlohmann : automatically installed through cmake/nuget
 
 # Logging
@@ -63,7 +63,6 @@ The `DataAccessLayer` is a separate shared library (DLL) that provides SQLite-ba
 | `SQLiteSelect` | `SQLiteSelect.h/.cpp` | Helper for stepping through SELECT result rows |
 | `SQLiteStmt` | `SQLiteStmt.h/.cpp` | Low-level prepared-statement utility |
 | `VCFSQLiteRecord` | `VCFSQLiteRecord.h/.cpp` | Internal record that maps between `VCFData` and a SQLite row |
-| `DALExport.h` | `DALExport.h` | DLL export macro (`DAL_API`) |
 
 ## Public API (`IVCFDal`)
 

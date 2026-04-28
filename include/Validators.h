@@ -20,7 +20,7 @@ namespace Validations {
     * Base class for validations
     * Each validation can have a nested validation to allow chaining multiple validations together
     * 
-    * Implement validate methods to perform custom validations
+    * Implement validate method to perform custom validations
     */
     class Validator {
     public:

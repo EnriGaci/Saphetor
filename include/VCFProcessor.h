@@ -1,4 +1,5 @@
 #pragma once
+#include "Logging.h"
 #include "IFileReader.h"
 #include "ThreadPool.h"
 #include "ErrorHandler.h"
@@ -35,6 +36,8 @@ public:
     * Once all workers are done, finalize the records
     */
     void process() {
+        LOG(LogLevel::INFO, "Starting to read file and dispatch batches to workers...");
+
         auto batch = mFileReader->getBatch();
 
         while (!batch.empty()) {
@@ -45,6 +48,8 @@ public:
             batch = mFileReader->getBatch();
         }
 
+        LOG(LogLevel::INFO, "Main thread finished reading file and dispatching batches. Waiting for workers to finish...");
+
         // Wait for all parsing and persistance workers to finish before finalizing records
         mParseWorkersThreadPool.waitForTasksToFinish();
         mStoreWorker.waitForTasksToFinish();
@@ -53,6 +58,8 @@ public:
     }
 
     void processBatch(const std::vector<std::string>& batch) {
+        LOG(LogLevel::INFO, std::ostringstream() << "Thread " << std::this_thread::get_id() << " starting batch parsing");
+
         std::vector<VCFData> vcfDataBatch;
         vcfDataBatch.reserve(batch.size());
 
@@ -60,8 +67,8 @@ public:
             try {
                 VCFData data = mParser->parse(line);
                 vcfDataBatch.push_back(std::move(data));
-            } catch (const std::exception& /*ex*/) {
-                //RaiseWarning("Error parsing line: " + line + ". Error: " + ex.what());
+            } catch (const std::exception& ex) {
+                LOG(LogLevel::WARNING, "Error parsing line: " + line + ". Error: " + ex.what());
             }
         }
 

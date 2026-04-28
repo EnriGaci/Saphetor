@@ -10,7 +10,15 @@
 
 class DAL_API SQLiteVCFDal : public IVCFDal {
 public:
-    SQLiteVCFDal(const std::string& dbName);
+
+    /*
+    * @brief initializes the SQLiteVCFDal with a connection pool to the specified database. Optionally clears existing data.
+     *
+     * @param dbName The name of the SQLite database file to connect to.
+     * @param clearDbTables If true, existing data in the database will be cleared during initialization. Default is false.
+     * @throws std::runtime_error if the database connection fails, with the error message from SQLite.
+    */
+    SQLiteVCFDal(const std::string& dbName, bool clearDbTables = false);
 
     // Non-copyable
     SQLiteVCFDal(const SQLiteVCFDal&) = delete;
@@ -21,14 +29,6 @@ public:
     ~SQLiteVCFDal();
 
 public:
-
-    /*
-    * Initialize the database
-    * 
-    * @param clearDb If true, existing data will be cleared. Default is false.
-    */
-    void initDb(bool clearDb = false) override;
-
 
     /*
     * Fetch all variants from the main table, sorted by chrom and pos
@@ -58,7 +58,28 @@ private:
     void storeInVCFStaging(const std::vector<VCFSQLiteRecord>& records);
 
 private:
+
+    /*
+    * Initialize the database
+    */
+    void initDb();
+
+    /*
+    * @brief delete data in the tables
+    */
+    void clearTables();
+
+    /*
+    * @brief Wrapper for sqlite_stmt
+    * 
+    * @param sql The SQL statement to prepare.
+    * @param stmt Output parameter that will hold the prepared statement.
+    */
     void prepare_stmt(const char* sql, sqlite3_stmt** stmt);
+
+    /*
+    * @brief Finalizes a prepared statement, releasing its resources.
+    */
     void finalize_stmt(sqlite3_stmt* stmt);
 
 private:

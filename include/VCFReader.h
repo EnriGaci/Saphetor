@@ -5,52 +5,32 @@
 #include "IFileReader.h"
 #include "ErrorHandler.h"
 
+#define DEFAULT_BATCH_SIZE 100
 
 class VCFReader : public IFileReader
 {
 public:
-    VCFReader(const std::string& filePath, size_t batchSize = 100) : mBatchSize(batchSize) {
-        mFileStream = std::ifstream(filePath);
 
-        if (!mFileStream.is_open()) {
-            RaiseError(ErrorCodes::CouldNotOpenVCFFile, "Could not open file: " + filePath);
-        }
+    /*
+    * @brief opens the VCF file and prepares it for reading in batches. It also moves the stream to the beginning of the data section, skipping headers and meta-information lines.
+    *
+    * @param filePath The path to the VCF file to be read.
+    * @param batchSize The number of lines to read in each batch. Default is 100.
+    */
+    VCFReader(const std::string& filePath, size_t batchSize = DEFAULT_BATCH_SIZE);
 
-        moveStreamToDataBegin();
-    }
-
-    std::vector<std::string> getBatch() override {
-        // Read a batch of data from the file stream and return it
-        size_t i = 0;
-        std::vector<std::string> batch(mBatchSize);
-        while (i < mBatchSize) {
-            std::string line;
-            if (!std::getline(mFileStream, line)) {
-                break; // End of file or error
-            }
-            batch[i]=line;
-            i++;
-        }
-
-        if (i != mBatchSize) {
-            batch.resize(i);
-        }
-
-        return batch;
-    }
+    /*
+    * @brief reads the next batch of lines from the VCF file, starting from the current position of the stream. It returns a vector of strings, where each string is a line from the VCF file. If the end of the file is reached, it returns an empty vector.
+    */
+    std::vector<std::string> getBatch() override;
 
     ~VCFReader() = default;
 
 private:
-    // Moves stream passed information fields
-    void moveStreamToDataBegin() {
-        std::string line;
-        while (std::getline(mFileStream, line)) {
-            if (!line.empty() && line.size() > 1 && line[1] != '#') {
-                break;
-            }
-        }
-    }
+    /*
+    * @brief Moves stream passed information fields
+    */
+    void moveStreamToDataBegin();
 
 private:
     std::ifstream mFileStream;

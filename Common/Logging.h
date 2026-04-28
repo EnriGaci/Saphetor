@@ -3,8 +3,9 @@
 #include <fstream>
 #include <string>
 #include <ctime>
+#include <sstream>
 
-enum class LogLevel { INFO, WARNING, DEBUG, ERROR };
+enum class LogLevel { DEBUG, INFO, WARNING, ERROR };
 
 #define LOG(level, msg) Logger::getInstance().log(level, msg, __FILE__, __LINE__)
 
@@ -15,16 +16,19 @@ public:
         return instance;
     }
     void setLevel(LogLevel lvl) { minLevel = lvl; }
-    void log(LogLevel level, const std::string& msg, const char* file, int line) {
+    void log(LogLevel level, const std::string& msg, const char* file, int line) const {
         if (level < minLevel) return;
         std::ofstream logFile("app.log", std::ios_base::app);
         logFile << timestamp() << " [" << levelToString(level) << "] "
             << "[" << file << ":" << line << "] " << msg << std::endl;
     }
+    void log(LogLevel level, const std::ostringstream& msg, const char* file, int line) {
+        log(level, msg.str(), file, line);
+    }
 private:
     Logger() : minLevel(LogLevel::INFO) {}
         LogLevel minLevel;
-        std::string timestamp() {
+        std::string timestamp() const {
         std::time_t now = std::time(nullptr);
         char buf[32];
         std::tm tm_buf;
@@ -37,7 +41,7 @@ private:
         return buf;    
     }
 
-    std::string levelToString(LogLevel level) {
+    std::string levelToString(LogLevel level) const {
         switch (level) {
         case LogLevel::INFO: return "INFO";
         case LogLevel::WARNING: return "WARNING";
