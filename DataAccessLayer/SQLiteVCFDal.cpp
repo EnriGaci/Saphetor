@@ -163,7 +163,6 @@ void SQLiteVCFDal::finalize_stmt(sqlite3_stmt* stmt) {
     }
 }
 
-
 void SQLiteVCFDal::clearTables() {
     SQLiteQuery query(mConnectionPool);
 

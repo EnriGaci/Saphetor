@@ -82,7 +82,9 @@ target_link_libraries(src_implementation PRIVATE Common DataAccessLayer)
 target_include_directories(src_implementation PRIVATE ${CMAKE_SOURCE_DIR}/Common ${CMAKE_SOURCE_DIR}/DataAccessLayer)
 
 # Create a static library for shared test utilities
-add_library(test_utils STATIC tests/Utils.cpp  ../deps/sqlite-amalgamation-3530000/sqlite3.c)
+add_library(test_utils STATIC tests/Utils.cpp  ../deps/sqlite-amalgamation-3530000/sqlite3.c Common/Logging.h)
+target_include_directories(test_utils PRIVATE
+    ${CMAKE_SOURCE_DIR}/Common)
 
 file(GLOB TEST_SRC_FILES "${CMAKE_SOURCE_DIR}/tests/*.cpp")
 

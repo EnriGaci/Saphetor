@@ -5,7 +5,7 @@
 #include <ctime>
 #include <sstream>
 
-enum class LogLevel { DEBUG, INFO, WARNING, ERROR };
+enum class LogLevel { DEBUG, INFO, WARNING, ERROR, TEST }; // Loglevel TEST to be used in tests, so that we can easily filter out test logs from production logs
 
 #define LOG(level, msg) Logger::getInstance().log(level, msg, __FILE__, __LINE__)
 

@@ -98,8 +98,10 @@
     <ClCompile Include="..\src\Validators.cpp" />
     <ClCompile Include="..\src\VCFLineParser.cpp" />
     <ClCompile Include="..\src\VCFReader.cpp" />
+    <ClCompile Include="..\src\VCFProcessor.cpp" />
     <ClCompile Include="testValidators.cpp" />
     <ClCompile Include="testVCFLineParser.cpp" />
+    <ClCompile Include="testVCFProcessor.cpp" />
     <ClCompile Include="testVCFReader.cpp" />
     <ClCompile Include="testVCFSQLite.cpp" />
     <ClCompile Include="Utils.cpp" />
