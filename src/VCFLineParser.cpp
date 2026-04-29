@@ -153,17 +153,3 @@ std::vector<std::string> VCFLineParser::split(const std::string& line, char deli
     return tokens;
 }
 
-    //std::vector<std::string_view> split(const std::string_view line, char delim = '\t') const {
-    //    std::vector<std::string_view> tokens;
-    //    size_t start = 0;
-    //    while (start < line.size()) {
-    //        size_t end = line.find(delim, start);
-    //        if (end == std::string_view::npos) {
-    //            tokens.emplace_back(line.substr(start));
-    //            break;
-    //        }
-    //        tokens.emplace_back(line.substr(start, end - start));
-    //        start = end + 1;
-    //    }
-    //    return tokens;
-    //}

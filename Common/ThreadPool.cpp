@@ -33,9 +33,6 @@ void ThreadPool::worker_loop() {
             }
             task = std::move(tasks.front());
             tasks.pop();
-        }
-        {
-            WriteLock lock(queue_mutex);
             active_tasks++;
         }
 
