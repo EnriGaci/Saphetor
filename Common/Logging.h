@@ -18,8 +18,8 @@ public:
     void setLevel(LogLevel lvl) { minLevel = lvl; }
     void log(LogLevel level, const std::string& msg, const char* file, int line) const {
         if (level < minLevel) return;
-        std::ofstream logFile("app.log", std::ios_base::app);
-        logFile << timestamp() << " [" << levelToString(level) << "] "
+        //std::ofstream logFile("app.log", std::ios_base::app);
+        std::cout << timestamp() << " [" << levelToString(level) << "] "
             << "[" << file << ":" << line << "] " << msg << std::endl;
     }
     void log(LogLevel level, const std::ostringstream& msg, const char* file, int line) {
@@ -47,6 +47,7 @@ private:
         case LogLevel::WARNING: return "WARNING";
         case LogLevel::DEBUG: return "DEBUG";
         case LogLevel::ERROR: return "ERROR";
+        case LogLevel::TEST: return "TEST";
         default: return "UNKNOWN";
         }
     }

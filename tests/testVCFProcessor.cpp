@@ -3,6 +3,7 @@
 #include "VCFReader.h"
 #include "SQLiteVCFDal.h"
 #include "VCFLineParser.h"
+#include "Logging.h"
 
 #include <gtest/gtest.h>
 #include <memory>
@@ -85,14 +86,22 @@ TEST(TestVCFProcessor, ProcessCallsStoreAndFinalize) {
 class DelayParser : public IParser {
 public:
     int delayMs;
+    static std::atomic<int> concurrentCalls;
+    static std::atomic<int> maxConcurrent;
     DelayParser(int ms) : delayMs(ms) {}
     VCFData parse(const std::string& line) const override {
+        int now = ++concurrentCalls;
+        if (now > maxConcurrent) maxConcurrent = now;
         std::this_thread::sleep_for(std::chrono::milliseconds(delayMs));
         VCFData d;
         d.chrom = line;
+        --concurrentCalls;
         return d;
     }
 };
+
+std::atomic<int> DelayParser::concurrentCalls{ 0 };
+std::atomic<int> DelayParser::maxConcurrent{ 0 };
 
 // DAL that checks for concurrent store calls and finalize timing
 class SerializingDal : public IVCFDal {
@@ -101,10 +110,14 @@ public:
     static std::atomic<int> maxConcurrent;
     static std::atomic<int> finalizeCalled;
     static std::atomic<bool> storeFinished;
+    int mDelayMs{ 50 };
+
+    SerializingDal(int delayMs = 50) : mDelayMs(delayMs){}
+
     void storeBatchInStaging(const std::vector<VCFData>& /*batch*/) override {
         int now = ++concurrentCalls;
         if (now > maxConcurrent) maxConcurrent = now;
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        std::this_thread::sleep_for(std::chrono::milliseconds(mDelayMs));
         --concurrentCalls;
         storeFinished = true;
     }
@@ -123,14 +136,17 @@ std::atomic<bool> SerializingDal::storeFinished{ false };
 TEST(TestVCFProcessor, ConcurrencyAndSerialization) {
     auto reader = std::make_unique<MockFileReader>();
 
-    int numThreads = 10;
-    for (int i = 1; i <= numThreads; i++) {
+    int numThreads = 4;
+    int batches = 4;
+    
+    for (int i = 1; i <= batches; i++) {
         reader->batches.push_back({ "chr" + std::to_string(i) });
     }
 
     int parseDelayMs = 100;
+    int serializingDelay = 50;
     auto parser = std::make_unique<DelayParser>(parseDelayMs);
-    auto dal = std::make_unique<SerializingDal>();
+    auto dal = std::make_unique<SerializingDal>(serializingDelay);
 
     SerializingDal::concurrentCalls = 0;
     SerializingDal::maxConcurrent = 0;
@@ -144,14 +160,19 @@ TEST(TestVCFProcessor, ConcurrencyAndSerialization) {
 
     auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
 
-    // Parsing should be parallel: elapsed time should be less than sum of all parse delays
-    EXPECT_LT(elapsedMs, parseDelayMs*numThreads ); 
-    EXPECT_GT(elapsedMs, parseDelayMs - 10); // should not be instant
+    // Expect all threads to be utilized
+    EXPECT_EQ(DelayParser::maxConcurrent, numThreads);
 
     // Storage should be serialized: maxConcurrent should be 1
     EXPECT_EQ(SerializingDal::maxConcurrent, 1);
     // Finalize called once
     EXPECT_EQ(SerializingDal::finalizeCalled, 1);
+
+    // Parsing should be parallel + each parsed batch triggers storage delay
+    EXPECT_LT(elapsedMs, parseDelayMs*numThreads + numThreads*serializingDelay); 
+    EXPECT_GT(elapsedMs, parseDelayMs - 10); // should not be instant
+
+
 }
 
 
