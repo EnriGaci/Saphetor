@@ -20,6 +20,7 @@ struct COMMON_API VCFData {
     float qual{ 0.0 };
     VCFDataMap info{};
     VCFDataMap format{};
+
+    std::string toString();
 };
 
-std::ostream& operator<<(std::ostream& os, const VCFData& data);

@@ -1,29 +1,30 @@
 #include "VCFData.h"
+#include <sstream>
 
-
-std::ostream& operator<<(std::ostream& os, const VCFData& data) {
-    os << "chrom: " << data.chrom
-       << ", pos: " << data.pos
-       << ", ref: " << data.ref
-       << ", alt: " << data.alt
-       << ", filter: " << data.filter
-       << ", qual: " << data.qual;
-    os << ", info: {";
+std::string VCFData::toString() {
+    std::ostringstream oss;
+    oss << "chrom: " << chrom
+        << ", pos: " << pos
+        << ", ref: " << ref
+        << ", alt: " << alt
+        << ", filter: " << filter
+        << ", qual: " << qual
+        << ", info: {";
     bool first = true;
-    for (const auto& [key, value] : data.info) {
-        if (!first) os << ", ";
-        os << key << ": ";
-        std::visit([&os](auto&& arg) { os << arg; }, value);
+    for (const auto& [key, value] : info) {
+        if (!first) oss << ", ";
+        oss << key << ": ";
+        std::visit([&oss](auto&& arg) { oss << arg; }, value);
         first = false;
     }
-    os << "}, format: {";
+    oss << "}, format: {";
     first = true;
-    for (const auto& [key, value] : data.format) {
-        if (!first) os << ", ";
-        os << key << ": ";
-        std::visit([&os](auto&& arg) { os << arg; }, value);
+    for (const auto& [key, value] : format) {
+        if (!first) oss << ", ";
+        oss << key << ": ";
+        std::visit([&oss](auto&& arg) { oss << arg; }, value);
         first = false;
     }
-    os << "}";
-    return os;
+    oss << "}";
+    return oss.str();
 }

@@ -4,6 +4,7 @@
 #include <string>
 #include <ctime>
 #include <sstream>
+#include <mutex>
 
 enum class LogLevel { DEBUG, INFO, WARNING, ERROR, TEST }; // Loglevel TEST to be used in tests, so that we can easily filter out test logs from production logs
 
@@ -18,6 +19,7 @@ public:
     void setLevel(LogLevel lvl) { minLevel = lvl; }
     void log(LogLevel level, const std::string& msg, const char* file, int line) const {
         if (level < minLevel) return;
+        std::lock_guard<std::mutex> lock(logMutex);
         //std::ofstream logFile("app.log", std::ios_base::app);
         std::cout << timestamp() << " [" << levelToString(level) << "] "
             << "[" << file << ":" << line << "] " << msg << std::endl;
@@ -26,6 +28,8 @@ public:
         log(level, msg.str(), file, line);
     }
 private:
+    mutable std::mutex logMutex; // to ensure thread-safe logging
+
     Logger() : minLevel(LogLevel::INFO) {}
         LogLevel minLevel;
         std::string timestamp() const {

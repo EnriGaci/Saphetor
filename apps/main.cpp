@@ -88,7 +88,6 @@ int main(int argv, char* argc[]) {
     processor.process();
 
 
-
     // Re-instantiate the DAL to fetch records and verify insertion
     dal = std::make_unique<SQLiteVCFDal>(Configuration::getInstance().getSqliteDBName(), false);
 
@@ -96,7 +95,11 @@ int main(int argv, char* argc[]) {
 
     auto records = dal->fetchAllVariants();
 
-    std::cout << "Total records in DB: " << records.size() << std::endl;
+    LOG(LogLevel::INFO, "Total records in storage : " + std::to_string(records.size()));
+
+    for (auto data : records){
+        LOG(LogLevel::DEBUG, data.toString());
+    }
 
     return 0;
 }
