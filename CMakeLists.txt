@@ -40,7 +40,6 @@ add_library(DataAccessLayer SHARED ${DAL_FILES})
 
 add_executable(vcf_importer
   ${SRC_FILES}
-  Common/ErrorHandler.cpp
   apps/main.cpp
   # Add more source files as needed
 )
