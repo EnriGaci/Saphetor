@@ -1,12 +1,14 @@
 
 # Project Overview and Architecture Summary
 
-**vcf_importer** reads a VCF file and stores its contents in an SQLite3 database.
+**File Processor** A concurrent file reading, parsing and storage app <br>
+Currenty supports parsing [VCF files](https://samtools.github.io/hts-specs/VCFv4.3.pdf) and SQLite storage.
+
 
 - One thread opens the file and reads lines in batches.
 - Each batch is submitted to a thread pool, where worker threads pick up the work.
 - Each worker parses the lines in its batch and passes the parsed data to a storage thread for sequential database insertions in a `staging` table.
-- Once all insertions into the staging table are complete, the main thread runs an optimized query to insert the data into the `variants` table in order.
+- Once all insertions into the staging table are complete, the main thread runs an optimized query to insert the data into the `final` table in order.
 
 # Build instructions
 
